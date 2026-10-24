@@ -1,9 +1,7 @@
 """
 CafeERP - Telegram Akıllı Kafe Asistanı Botu (Telegram Bot Service)
-Harici LLM gerektirmeden:
 1. Telegram klavye butonları ile tek tıkla ciro, yoğunluk, stok ve brifing raporu sunar.
 2. Kafe sahibinin yazdığı serbest Türkçe mesajları (NLU motoruyla) çözümler ve yanıtlar.
-3. Token verilmediğinde veya '--sim' parametresiyle doğrudan terminal simülasyon modunda çalışabilir.
 """
 
 import os
@@ -17,6 +15,9 @@ from dotenv import load_dotenv
 # .env dosyasını otomatik yükle
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
+
+# Mesajların kaydedileceği log dosyası
+LOG_FILE = BASE_DIR / "telegram_messages.log"
 
 # Windows konsolunda emoji ve utf-8 karakter desteği
 if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
@@ -128,7 +129,14 @@ class CafeTelegramBot:
                         text = msg.get("text", "")
                         user_name = msg["from"].get("first_name", "Kullanıcı")
 
-                        print(f"[MESAJ] {user_name} ({chat_id}): {text}")
+                        log_entry = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {user_name} ({chat_id}): {text}"
+                        print(f"[MESAJ] {log_entry}", flush=True)
+                        try:
+                            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                                f.write(log_entry + "\n")
+                        except Exception:
+                            pass
+
                         reply_text = self.handle_message(text)
                         self.send_message(chat_id, reply_text)
                 time.sleep(0.5)
@@ -139,59 +147,6 @@ class CafeTelegramBot:
                 print(f"[!] Polling hatası: {e}")
                 time.sleep(3)
 
-    def run_simulation(self):
-        """Terminal üzerinden Telegram etkileşimini simüle eder."""
-        print("="*65)
-        print("🤖 CafeERP TELEGRAM ASİSTANI - TERMİNAL SİMÜLASYONU")
-        print("   (Harici LLM yok, doğrudan Veritabanı + LightGBM Motoru)")
-        print("="*65)
-        print("Hazır Butonlar:")
-        print(" [1] 💰 Bugünkü Ciro & Satış")
-        print(" [2] 👥 Kafe Yoğunluğu & Tahmin")
-        print(" [3] 🥛 Kritik Stok & Uyarılar")
-        print(" [4] 📋 Günün Özeti & Brifing")
-        print("\nİpucu: Numara seçebilir veya 'bugün ne kadar satış yapıldı?' gibi")
-        print("doğrudan Türkçe soru yazabilirsiniz. Çıkmak için 'q' yazın.")
-        print("="*65 + "\n")
-
-        button_map = {
-            "1": "bugün ne kadar satış yapıldı",
-            "2": "bugün kafe yoğunluğu nedir",
-            "3": "kritik stok durumu",
-            "4": "günlük brifing özeti"
-        }
-
-        while True:
-            try:
-                user_input = input("\n👤 Kafe Sahibi > ").strip()
-                if not user_input:
-                    continue
-                if user_input.lower() in ['q', 'exit', 'cikis', 'quit']:
-                    print("[*] Simülasyondan çıkıldı.")
-                    break
-
-                query = button_map.get(user_input, user_input)
-                response = self.handle_message(query)
-
-                print("\n🤖 Bot >")
-                print(response)
-                print("-" * 50)
-            except KeyboardInterrupt:
-                print("\n[*] Simülasyon sonlandırıldı.")
-                break
-
 if __name__ == "__main__":
-    token = None
-    if "--token" in sys.argv:
-        try:
-            token_idx = sys.argv.index("--token") + 1
-            token = sys.argv[token_idx]
-        except IndexError:
-            pass
-
-    bot = CafeTelegramBot(token=token)
-    # Eğer komut satırında --sim varsa veya token yoksa simülasyona başla
-    if "--sim" in sys.argv or not bot.token:
-        bot.run_simulation()
-    else:
-        bot.run_polling()
+    bot = CafeTelegramBot()
+    bot.run_polling()
