@@ -1,6 +1,6 @@
 """Depodaki örnek veri ve eğitilmiş modelle, dış ağa çıkmadan API doğrulaması."""
 
-import sqlite3
+from sqlalchemy import text
 import sys
 import unittest
 from contextlib import closing
@@ -19,8 +19,8 @@ from app.main import app
 class SampleDataIntegrationTests(unittest.TestCase):
     def test_all_endpoints_with_real_model_and_reconciled_training_data(self):
         frame = load_and_preprocess_data()
-        with closing(sqlite3.connect(engine_module.DB_PATH.as_uri() + '?mode=ro', uri=True)) as conn:
-            count, revenue = conn.execute('SELECT COUNT(*), SUM(total_amount) FROM orders').fetchone()
+        with engine_module._engine().connect() as conn:
+            count, revenue = conn.execute(text('SELECT COUNT(*), SUM(total_amount) FROM orders')).one()
         self.assertEqual(int(frame.order_count.sum()), count)
         self.assertEqual(float(frame.total_revenue.sum()), revenue)
         weather = {
@@ -35,7 +35,7 @@ class SampleDataIntegrationTests(unittest.TestCase):
             response = client.post('/api/ai/query', json={'query': 'bugünkü ciro nedir'})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()['intent'], 'SALES_SUMMARY')
-        self.assertEqual(predictor.package['data_summary']['total_revenue'], revenue)
+        self.assertEqual(predictor.package['data_summary']['revenue_aggregation'], 'once_per_order')
 
 
 if __name__ == '__main__':

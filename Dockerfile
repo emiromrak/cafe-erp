@@ -26,6 +26,9 @@ RUN apt-get update \
 COPY backend ./backend
 COPY data ./data
 COPY tests ./tests
+COPY alembic.ini ./
+COPY migrations ./migrations
+COPY scripts ./scripts
 COPY requirements.txt ./
 
 EXPOSE 8000

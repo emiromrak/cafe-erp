@@ -1,18 +1,21 @@
 """
 CafeERP - Kural Tabanlı Uzman Karar ve Öneri Motoru (LLM-less Expert Engine)
 Harici LLM bağımlılığı olmadan:
-1. SQLite veritabanındaki gerçek ciro, satış, masa ve stok kayıtlarını doğrudan sorgular.
+1. PostgreSQL veritabanındaki gerçek ciro, satış, masa ve stok kayıtlarını doğrudan sorgular.
 2. LightGBM tahmin modeli (predictor.py) ve canlı hava durumunu (weather_service.py) harmanlar.
 3. Kafe sahibinin serbestçe sorduğu Türkçe soruları (Niyet / Intent çözümleme ile) anında
    ve %100 matematiksel doğrulukla yanıtlar.
 """
 
-import sqlite3
-import re
+from functools import lru_cache
 import sys
+from pathlib import Path
+from sqlalchemy import text as sql_text
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from app.database import get_engine
+import re
 from datetime import datetime
 from contextlib import closing
-from pathlib import Path
 from typing import Dict, Any, List
 
 # Windows konsolunda emoji ve utf-8 karakter desteği
@@ -29,13 +32,13 @@ except ImportError:
     from predictor import predictor
     from weather_service import get_current_weather
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DB_PATH = BASE_DIR / "data" / "sample_cafe.db"
+@lru_cache(maxsize=1)
+def _engine():
+    """Bağlantı havuzunu uygulama genelinde yeniden kullanır."""
+    return get_engine()
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH.resolve().as_uri() + '?mode=ro', uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return _engine().connect()
 
 def normalize_text(text: str) -> str:
     """Türkçe karakterleri ve küçük harfleri arama için standartlaştırır."""
@@ -59,18 +62,15 @@ class CafeDecisionEngine:
         Eğer hedef tarih verilmezse ve bugüne ait sipariş yoksa, son aktif günün verilerini sunar.
         """
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
 
             # En son tarihli günü öğren
-            cursor.execute("SELECT MAX(substr(timestamp, 1, 10)) FROM orders")
-            latest_db_date = cursor.fetchone()[0]
+            latest_db_date = conn.execute(sql_text("SELECT MAX(substr(timestamp, 1, 10)) FROM orders")).scalar()
 
             today_str = datetime.now().strftime("%Y-%m-%d")
             query_date = target_date or today_str
 
             # Sorgulanan gün için sipariş sayısı
-            cursor.execute("SELECT COUNT(*) FROM orders WHERE substr(timestamp, 1, 10) = ?", (query_date,))
-            count = cursor.fetchone()[0]
+            count = conn.execute(sql_text("SELECT COUNT(*) FROM orders WHERE substr(timestamp, 1, 10) = :date"), {"date": query_date}).scalar()
 
             is_fallback = False
             display_date = query_date
@@ -81,7 +81,7 @@ class CafeDecisionEngine:
                 is_fallback = True
 
             # Satış özetini al
-            cursor.execute("""
+            result = conn.execute(sql_text("""
                 SELECT
                     COUNT(DISTINCT order_id) as total_orders,
                     COALESCE(SUM(total_amount), 0) as total_revenue,
@@ -89,21 +89,21 @@ class CafeDecisionEngine:
                     COALESCE(SUM(CASE WHEN payment_method = 'Kredi Kartı' THEN total_amount ELSE 0 END), 0) as card_revenue,
                     COALESCE(SUM(CASE WHEN payment_method = 'Nakit' THEN total_amount ELSE 0 END), 0) as cash_revenue
                 FROM orders
-                WHERE substr(timestamp, 1, 10) = ?
-            """, (query_date,))
-            stats = dict(cursor.fetchone())
+                WHERE substr(timestamp, 1, 10) = :date
+            """), {"date": query_date})
+            stats = dict(result.mappings().one())
 
             # En çok satan 5 ürünü al
-            cursor.execute("""
+            result = conn.execute(sql_text("""
                 SELECT oi.product_name, SUM(oi.quantity) as total_qty, SUM(oi.quantity * oi.unit_price) as product_rev
                 FROM orders o
                 JOIN order_items oi ON o.order_id = oi.order_id
-                WHERE substr(o.timestamp, 1, 10) = ?
+                WHERE substr(o.timestamp, 1, 10) = :date
                 GROUP BY oi.product_name
                 ORDER BY total_qty DESC
                 LIMIT 5
-            """, (query_date,))
-            top_items = [dict(row) for row in cursor.fetchall()]
+            """), {"date": query_date})
+            top_items = [dict(row) for row in result.mappings()]
 
         # Mesaj metnini derle
         date_header = f"{display_date}"
@@ -192,9 +192,8 @@ class CafeDecisionEngine:
         ve erken tükenme alarmları üretir.
         """
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, name, category, unit, current_stock, min_alert FROM raw_materials")
-            rows = [dict(r) for r in cursor.fetchall()]
+            result = conn.execute(sql_text("SELECT id, name, category, unit, current_stock, min_alert FROM raw_materials"))
+            rows = [dict(r) for r in result.mappings()]
 
         # Kritik eşiğin altına inmiş olanları bul
         low_stocks = [r for r in rows if r["current_stock"] <= r["min_alert"]]

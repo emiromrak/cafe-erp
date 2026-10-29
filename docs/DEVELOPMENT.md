@@ -1,5 +1,14 @@
 # CafeERP geliştirme durumu
 
+## PostgreSQL geçişi
+
+Uygulama ve model eğitimi PostgreSQL kullanır. `migrations/` Alembic şemasını,
+`scripts/import_sqlite.py` ise eski örnek SQLite verisinin tek seferlik güvenli
+aktarımı için kullanılır. Menü ve masa uçları `/api/categories`, `/api/products`
+ve `/api/tables` adreslerindedir. Masa doluluğu `open_tabs.closed_at` alanı boş
+olan adisyonlardan türetilir; adisyon oluşturma ve ödeme API'leri henüz yoktur.
+Geçmiş siparişler açık adisyon sayılmaz. Bağlantı ve kurulum için `DOCKER.md`.
+
 ## Aşama 1 — Karar destek çekirdeğinin doğruluğu
 
 29 Ekim 2026 tarihinde uygulanan değişiklikler:
@@ -21,7 +30,7 @@ python -B -m unittest discover -s tests -v
 python -B backend/app/ai/train_forecast.py
 ```
 
-Testlerde geçici SQLite veritabanları ve sahte ağ yanıtları kullanılır; gerçek Telegram mesajı gönderilmez ve örnek işletme verisi değiştirilmez.
+Testlerde PostgreSQL üzerinde geçici şemalar ve sahte ağ yanıtları kullanılır; gerçek Telegram mesajı gönderilmez ve örnek işletme verisi değiştirilmez.
 
 Yeniden eğitim: 37.310 sipariş, 2.703 saatlik kayıt, toplam 5.659.215 TL ciro. Son 30 gün test olarak ayrılır. Ciro modeli için MAE 567,44 TL/saat, RMSE 723,88 TL/saat, R² 0,621; trafik için MAE 3,22 sipariş/saat, R² 0,678.
 
@@ -35,7 +44,7 @@ Bu metrikler sentetik veri üzerindedir; gerçek işletmedeki başarıyı göste
 
 ## Mevcut sınırlar
 
-- SQLite'ta altı uygulama tablosu vardır: `raw_materials`, `products`, `dining_tables`, `staff`, `orders`, `order_items`. `sqlite_sequence` SQLite'ın dahili tablosudur. `CODEX.md` ve eski mimari belgelerindeki bazı alanlar hedef tasarımdır.
+- Eski SQLite kaynağı altı uygulama tablosu içerir. `CODEX.md` ve eski mimari belgelerindeki bazı alanlar hedef tasarımdır.
 - Reçeteler veri üretecinde ve JSON'da bulunur; SQL reçete tablosu ve gerçek stok hareketi henüz yoktur. Tahmin simülasyonundaki ortalama tüketim katsayıları gerçek ürün reçetelerinin yerine kullanılmamalıdır.
 - Backend için kimlik doğrulama ve rol kontrolü henüz yoktur. Varsayılan sunucu yerel `127.0.0.1` adresinde çalışır; dış erişim öncesinde erişim kontrolü ve CORS yapılandırması tamamlanmalıdır.
 - Telegram zamanlanmış sabah/akşam raporu göndermiyor; gelen mesajlara yanıt veriyor.

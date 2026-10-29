@@ -3,7 +3,7 @@ CafeERP - Makine Öğrenmesi Talep ve Yoğunluk Tahmin Modeli Eğitimi
 (LightGBM Demand & Traffic Forecaster)
 
 Bu script:
-1. sample_cafe.db veritabanındaki 37.000+ siparişi saatlik bazda gruplar.
+1. PostgreSQL veritabanındaki 37.000+ siparişi saatlik bazda gruplar.
 2. Saat, gün, hafta sonu, Çarşamba yoğunluğu, hava durumu ve sıcaklık özniteliklerini (features) çıkarır.
 3. LightGBM regresyon modeli ile:
    - Saatlik Müşteri / Sipariş Yoğunluğu (Traffic)
@@ -16,14 +16,15 @@ Bu script:
 5. Modeli 'backend/app/ai/models/demand_forecast.pkl' olarak kaydeder.
 """
 
-import sqlite3
 import sys
-from contextlib import closing
+from pathlib import Path
+from sqlalchemy import text
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from app.database import get_engine
 from tempfile import NamedTemporaryFile
 import pandas as pd
 import numpy as np
 import joblib
-from pathlib import Path
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
@@ -34,14 +35,13 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
         pass
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DB_PATH = BASE_DIR / "data" / "sample_cafe.db"
 MODEL_DIR = Path(__file__).resolve().parent / "models"
 MODEL_FILE = MODEL_DIR / "demand_forecast.pkl"
 
-def load_and_preprocess_data(db_path=None):
+def load_and_preprocess_data(engine=None):
     """Kalemleri önce adisyon bazında toplar; her adisyonun cirosunu yalnızca bir kez sayar."""
-    db_path = Path(db_path) if db_path is not None else DB_PATH
-    print(f"[*] Veritabanı okunuyor: {db_path}")
+    engine = engine if engine is not None else get_engine()
+    print("[*] PostgreSQL veritabanı okunuyor...")
 
     # 1. Saatlik özet veriyi çıkar
     query = """
@@ -71,8 +71,8 @@ def load_and_preprocess_data(db_path=None):
     GROUP BY order_date, hour, o.weekday, o.weather, o.temperature
     ORDER BY order_date, hour
     """
-    with closing(sqlite3.connect(db_path.resolve().as_uri() + '?mode=ro', uri=True)) as conn:
-        df = pd.read_sql_query(query, conn)
+    with engine.connect() as conn:
+        df = pd.read_sql_query(text(query), conn)
     if df.empty:
         raise ValueError("Model eğitimi için sipariş verisi bulunamadı.")
 

@@ -21,7 +21,8 @@ Bu depoda çalışırken ajanın temel görevi:
 - `backend/app/ai/predictor.py`: LightGBM çıkarımı ve reçete burn-rate simülasyonu.
 - `backend/app/ai/weather_service.py`: Open-Meteo canlı hava durumu entegrasyonu.
 - `backend/app/ai/telegram_bot.py`: Telegram "Cepteki Müdür" asistanı.
-- `data/sample_cafe.db`: 7 tablodan oluşan SQLite veritabanı (37.000+ gerçekçi sipariş).
+- PostgreSQL: Docker Compose `db` servisi; eski `data/sample_cafe.db` yalnızca aktarım kaynağıdır.
+- `migrations/`: Alembic şema geçişleri; `scripts/import_sqlite.py`: tek seferlik örnek veri aktarımı.
 - `data/generator/generate_sample_data.py`: Sentetik veri üreteci.
 
 ---
@@ -41,4 +42,4 @@ Bu depoda çalışırken ajanın temel görevi:
 3. **SQLite Kilitlenmesi:** Veritabanı sorgularından sonra bağlantının kapatıldığından (`conn.close()`) emin olun.
 4. **Kod Dili ve Yorumlar:** Mevcut Türkçe değişken açıklamalarını ve docstring'leri koruyun.
 5. **Gizlilik:** `.env` dosyasındaki token ve hassas bilgileri commit veya print etmeyin.
-6. **Commit dili:** Kullanıcı aksini belirtmedikçe tüm commit mesajları Türkçe yazılmalıdır.
+6. **Commit biçimi ve dili:** Kullanıcı aksini belirtmedikçe `tür(kapsam): Türkçe açıklama` biçimini kullanın (ör. `feat(telegram): mesajların loglanması eklendi`).

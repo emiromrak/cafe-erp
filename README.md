@@ -34,7 +34,7 @@ flowchart TD
     end
 
     subgraph Veri ["Veri Katmanı"]
-        DB[(SQLite / PostgreSQL)]
+        DB[(PostgreSQL)]
         Models[("demand_forecast.pkl")]
     end
 
@@ -49,7 +49,7 @@ flowchart TD
 
 - **Backend:** Python 3.12, FastAPI, Uvicorn, Pydantic v2
 - **Yapay Zeka & Veri Bilimi:** LightGBM, Pandas, Scikit-learn, Joblib
-- **Veritabanı:** SQLite (`data/sample_cafe.db` - 37.000+ gerçekçi sipariş)
+- **Veritabanı:** PostgreSQL (örnek SQLite verisinden aktarılmış 37.000+ sipariş)
 - **Frontend (Yol Haritası):** Next.js 14/15, Tailwind CSS, shadcn/ui
 - **Harici API'ler:** Open-Meteo API, Telegram Bot API
 
@@ -73,8 +73,10 @@ cafe_erp/
 │       ├── api/ai_routes.py     # AI REST rotaları
 │       └── ai/                  # Tahmin modeli, karar motoru ve Telegram botu
 ├── data/
-│   ├── sample_cafe.db           # SQLite veritabanı (Menü, Reçeteler, Masalar, Siparişler)
-│   └── generator/               # Gerçekçi sentetik veri üreteci
+│   ├── sample_cafe.db           # Salt okunur eski örnek veri kaynağı
+│   └── generator/               # Eski örnek veri üreteci
+├── migrations/                  # Alembic PostgreSQL şema geçişleri
+├── scripts/import_sqlite.py     # Eski örnek veriyi PostgreSQL'e aktarır
 ├── tests/                       # Çekirdek ve API entegrasyon testleri
 └── docs/                        # Mimari, geliştirme notları ve görseller
 ```
@@ -88,8 +90,15 @@ cafe_erp/
 Docker Desktop açıkken proje kökünde:
 
 ```powershell
-docker compose up -d --build --wait api
+docker compose up -d --wait db
+docker compose build api
+docker compose run --rm api python -m alembic upgrade head
+docker compose run --rm api python scripts/import_sqlite.py
+docker compose up -d --wait api
 ```
+
+İlk kullanımdan önce `.env` dosyasında `POSTGRES_PASSWORD` tanımlanmalıdır.
+Şema geçişi ve örnek veri aktarımı ilk kurulum içindir; aktarım dolu hedefe yazmaz.
 
 API: http://localhost:8000 — Swagger: http://localhost:8000/docs
 
@@ -110,6 +119,7 @@ Kök dizinde `.env` dosyasını oluşturun:
 ```env
 TELEGRAM_BOT_TOKEN="your_bot_token_here"
 TELEGRAM_ALLOWED_USER_IDS="123456789"
+POSTGRES_PASSWORD="yerel-guclu-bir-parola"
 CAFE_LATITUDE=37.7647
 CAFE_LONGITUDE=30.5567
 ```
@@ -129,9 +139,6 @@ python backend/app/ai/telegram_bot.py
 
 ### 5. Modelleri ve Veriyi Yeniden Üretme (Opsiyonel)
 ```bash
-# Örnek veritabanını oluşturma
-python data/generator/generate_sample_data.py
-
 # LightGBM tahmin modelini eğitme
 python backend/app/ai/train_forecast.py
 ```

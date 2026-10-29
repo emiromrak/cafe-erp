@@ -2,6 +2,8 @@
 
 > **Bu dosya, projede çalışan OpenAI Codex, Cursor, GitHub Copilot, Claude Code ve diğer tüm yapay zeka kodlama ajanları için tek ve yetkili rehberdir.** Projenin mimarisi, iş kuralları, veritabanı şeması, yapay zeka tahmin motoru, operasyonel akışları ve geliştirme standartları eksiksiz olarak burada belgelenmiştir.
 
+> **Güncel durum:** Uygulama PostgreSQL kullanır. Bu belgenin SQLite şeması ve çalıştırma açıklamaları eski örnek veri kaynağını anlatır; güncel kurulum ve sınırlar için `docs/DOCKER.md` ve `docs/DEVELOPMENT.md` dosyalarına bakın.
+
 ---
 
 ## 1. Projeye Genel Bakış (Executive Overview)
