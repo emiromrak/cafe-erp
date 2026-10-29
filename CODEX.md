@@ -32,6 +32,9 @@ cafe_erp/
 ├── README.md                    # İnsan ve geliştirici odaklı genel proje tanıtımı
 ├── .cursorrules                 # Cursor ve IDE yapay zeka kuralları
 ├── requirements.txt             # Python bağımlılıkları (FastAPI, LightGBM, Pandas vb.)
+├── requirements.lock            # Konteyner bağımlılık sürümleri
+├── Dockerfile, compose.yaml     # İmaj ve API / Telegram servisleri
+├── .devcontainer/               # Geliştirme konteyneri yapılandırması
 ├── .env                         # Telegram bot token, GPS koordinatları (Gizli değişkenler)
 ├── .gitignore                   # Git yoksayma kuralları
 ├── telegram_messages.log        # Telegram botu üzerinden gelen mesajların canlı kayıt kütüğü
@@ -62,13 +65,11 @@ cafe_erp/
 │   ├── MODULES_AND_FLOWS.md     # POS, KDS, Garson Terminali ve AI temas noktaları
 │   ├── ROADMAP.md               # 5 fazlı geliştirme yol haritası
 │   ├── FISCAL_AND_MVP_STRATEGY.md # Türkiye yasal ÖKC / Mali fiş stratejisi ve MVP ayrımı
+│   ├── DOCKER.md                # Docker ve Dev Container kullanım kılavuzu
+│   ├── DEVELOPMENT.md           # Mevcut durum ve geliştirme notları
 │   └── images/                  # Arayüz taslakları, Gantt şeması ve mimari diyagramlar
 │
-└── [Rapor ve Görselleştirme Betikleri]
-    ├── build_clean_doc.py       # Tasarım 1 Akademik/Mühendislik Raporu Word derleyicisi
-    ├── generate_chart.py        # Çalışma takvimi Gantt şeması üreteci (Matplotlib)
-    ├── generate_flowchart.py    # Sistem yöntem akış şeması üreteci (Matplotlib)
-    └── inspect_*.py             # Rapor şablonu inceleme ve düzeltme yardımcıları
+└── tests/                       # Çekirdek ve API entegrasyon testleri
 ```
 
 ---

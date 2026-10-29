@@ -41,3 +41,4 @@ Bu depoda çalışırken ajanın temel görevi:
 3. **SQLite Kilitlenmesi:** Veritabanı sorgularından sonra bağlantının kapatıldığından (`conn.close()`) emin olun.
 4. **Kod Dili ve Yorumlar:** Mevcut Türkçe değişken açıklamalarını ve docstring'leri koruyun.
 5. **Gizlilik:** `.env` dosyasındaki token ve hassas bilgileri commit veya print etmeyin.
+6. **Commit dili:** Kullanıcı aksini belirtmedikçe tüm commit mesajları Türkçe yazılmalıdır.

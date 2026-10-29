@@ -64,6 +64,9 @@ cafe_erp/
 ├── CODEX.md                     # Yapay zeka ajanları ve Codex için ana referans
 ├── AGENTS.md                    # Multi-agent sistemler için rehber
 ├── requirements.txt             # Proje Python bağımlılıkları
+├── requirements.lock            # Docker için sabitlenmiş bağımlılıklar
+├── Dockerfile, compose.yaml     # Konteyner imajı ve servisleri
+├── .devcontainer/               # VS Code geliştirme konteyneri
 ├── backend/
 │   └── app/
 │       ├── main.py              # FastAPI sunucu giriş noktası
@@ -73,7 +76,6 @@ cafe_erp/
 │   ├── sample_cafe.db           # SQLite veritabanı (Menü, Reçeteler, Masalar, Siparişler)
 │   └── generator/               # Gerçekçi sentetik veri üreteci
 ├── tests/                       # Çekirdek ve API entegrasyon testleri
-├── scripts/reports/             # Rapor, grafik ve şablon inceleme araçları
 └── docs/                        # Mimari, geliştirme notları ve görseller
 ```
 
@@ -81,10 +83,20 @@ cafe_erp/
 
 ## 🚀 Hızlı Başlangıç (Quickstart)
 
+### Docker ile başlatma
+
+Docker Desktop açıkken proje kökünde:
+
+```powershell
+docker compose up -d --build --wait api
+```
+
+API: http://localhost:8000 — Swagger: http://localhost:8000/docs
+
+Kapatmak için `docker compose down` kullanın. Dev Container, Telegram ve
+veri saklama ayrıntıları: [Docker kılavuzu](docs/DOCKER.md).
+
 Uygulama kodu `backend/`, örnek veriler `data/`, testler `tests/` altındadır.
-Rapor araçlarının kullanımı için [scripts/reports/README.md](scripts/reports/README.md)
-dosyasına bakınız. Yerel Word şablonları `docs/templates/`, üretilen raporlar
-`docs/output/` altında tutulur.
 
 ### 1. Kurulum
 ```bash
@@ -102,7 +114,7 @@ CAFE_LATITUDE=37.7647
 CAFE_LONGITUDE=30.5567
 ```
 
-`.env.example` dosyası örnek ayarları içerir. `TELEGRAM_ALLOWED_USER_IDS`, virgülle ayrılmış Telegram kullanıcı kimlikleridir. Bot yalnızca bu kullanıcıların özel sohbetlerine yanıt verir; liste boşsa başlamaz. Konum belirtilmezse Kadıköy koordinatları kullanılır.
+`TELEGRAM_ALLOWED_USER_IDS`, virgülle ayrılmış Telegram kullanıcı kimlikleridir. Bot yalnızca bu kullanıcıların özel sohbetlerine yanıt verir; liste boşsa başlamaz. Konum belirtilmezse Kadıköy koordinatları kullanılır.
 
 ### 3. FastAPI Backend Servisini Başlatma
 ```bash

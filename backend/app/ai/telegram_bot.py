@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 # Mesajların kaydedileceği log dosyası
-LOG_FILE = BASE_DIR / "telegram_messages.log"
+LOG_FILE = Path(os.getenv('CAFE_LOG_DIR', str(BASE_DIR))) / "telegram_messages.log"
 
 # Windows konsolunda emoji ve utf-8 karakter desteği
 if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
@@ -35,7 +35,7 @@ except ImportError:
 
 TELEGRAM_API_BASE = "https://api.telegram.org/bot"
 
-# Telegram Menü Butonları (Persistent Reply Keyboard)
+# Telegram menü butonları (kalıcı yanıt klavyesi)
 TELEGRAM_KEYBOARD = {
     "keyboard": [
         [{"text": "💰 Bugünkü Ciro & Satış"}, {"text": "👥 Kafe Yoğunluğu & Tahmin"}],
@@ -118,6 +118,7 @@ class CafeTelegramBot:
         log_entry = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {user_name} ({chat_id}): {text}"
         print(f"[MESAJ] {log_entry}", flush=True)
         try:
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
             with open(LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(log_entry + '\n')
         except OSError:

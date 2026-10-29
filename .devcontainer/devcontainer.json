@@ -1,0 +1,16 @@
+{
+  "name": "CafeERP Python 3.12",
+  "dockerComposeFile": ["../compose.yaml", "compose.yaml"],
+  "service": "api",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.vscode-pylance"],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.analysis.extraPaths": ["/app/backend"]
+      }
+    }
+  }
+}

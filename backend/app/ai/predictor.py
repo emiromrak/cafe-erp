@@ -158,7 +158,7 @@ class DemandPredictor:
             "hourly_timeline": hourly_forecasts
         }
 
-# Singleton instance
+# Uygulama genelinde paylaşılan tek örnek
 predictor = DemandPredictor()
 
 if __name__ == "__main__":

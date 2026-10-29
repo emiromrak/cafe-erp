@@ -39,5 +39,5 @@ Bu metrikler sentetik veri üzerindedir; gerçek işletmedeki başarıyı göste
 - Reçeteler veri üretecinde ve JSON'da bulunur; SQL reçete tablosu ve gerçek stok hareketi henüz yoktur. Tahmin simülasyonundaki ortalama tüketim katsayıları gerçek ürün reçetelerinin yerine kullanılmamalıdır.
 - Backend için kimlik doğrulama ve rol kontrolü henüz yoktur. Varsayılan sunucu yerel `127.0.0.1` adresinde çalışır; dış erişim öncesinde erişim kontrolü ve CORS yapılandırması tamamlanmalıdır.
 - Telegram zamanlanmış sabah/akşam raporu göndermiyor; gelen mesajlara yanıt veriyor.
-- `scripts/reports/fix_report_layout.py` Word raporu yardımcısıdır; uygulama testleri `tests/` altındadır.
+- Uygulama testleri `tests/` altındadır.
 - Örnek veri üreteci mevcut tabloları yeniden oluşturur; canlı işletme verisinde çalıştırılmamalıdır.

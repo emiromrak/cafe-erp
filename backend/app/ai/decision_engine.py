@@ -367,7 +367,7 @@ class CafeDecisionEngine:
                 "quick_replies": ["💰 Bugünkü Ciro & Satış", "👥 Kafe Yoğunluğu & Tahmin", "🥛 Kritik Stok & Uyarılar", "📋 Günün Özeti"]
             }
 
-        # 7. EŞLEŞMEYEN SORULAR İÇİN AKILLI YÖNLENDİRME (FALLBACK)
+        # 7. EŞLEŞMEYEN SORULAR İÇİN AKILLI YÖNLENDİRME (YEDEK YANIT)
         text = (
             f"🤔 *'{query}'* sorunuzu tam olarak anlayamadım.\n\n"
             "Kafenizle ilgili en doğru bilgiyi alabilmek için şu konulardan birini sorabilir veya aşağıdaki butonları kullanabilirsiniz:\n"
@@ -383,7 +383,7 @@ class CafeDecisionEngine:
             "quick_replies": ["💰 Bugünkü Ciro & Satış", "👥 Kafe Yoğunluğu & Tahmin", "🥛 Kritik Stok & Uyarılar", "📋 Günün Özeti"]
         }
 
-# Singleton instance
+# Uygulama genelinde paylaşılan tek örnek
 decision_engine = CafeDecisionEngine()
 
 if __name__ == "__main__":

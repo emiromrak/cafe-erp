@@ -17,3 +17,6 @@ numpy>=1.26.0
 # Tasarım Raporu ve Görselleştirme Araçları (Opsiyonel / Dokümantasyon)
 matplotlib>=3.8.0
 python-docx>=1.1.0
+
+# API test araçları
+httpx>=0.28.0

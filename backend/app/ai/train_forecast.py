@@ -78,13 +78,13 @@ def load_and_preprocess_data(db_path=None):
 
     print(f"[OK] Toplam {len(df)} saatlik zaman dilimi kaydı yüklendi.")
 
-    # 2. Özellik Mühendisliği (Feature Engineering)
+    # 2. Özellik mühendisliği
     df['order_date'] = pd.to_datetime(df['order_date'])
     df['day_of_week'] = df['order_date'].dt.day_of_week # 0: Pazartesi, 6: Pazar
     df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
     df['is_wednesday'] = (df['day_of_week'] == 2).astype(int)
 
-    # Hava durumu kategorilerini sayısala dönüştür (One-Hot Encoding)
+    # Hava durumu kategorilerini ayrı ikili sütunlara dönüştür
     weather_dummies = pd.get_dummies(df['weather'], prefix='weather', drop_first=False).astype(int)
     df = pd.concat([df, weather_dummies], axis=1)
 
@@ -106,7 +106,7 @@ def train_models():
         if col not in df.columns:
             df[col] = 0
 
-    # Kronolojik Zaman Bölümlemesi (Time-based Train/Test Split)
+    # Kronolojik eğitim ve test verisi ayrımı
     # Son 30 günü test için ayıralım
     split_date = df['order_date'].max() - pd.Timedelta(days=30)
     train_mask = df['order_date'] <= split_date
