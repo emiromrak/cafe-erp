@@ -28,8 +28,10 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
 
 try:
     from .decision_engine import decision_engine
+    from .predictor import ForecastUnavailableError
 except ImportError:
     from decision_engine import decision_engine
+    from predictor import ForecastUnavailableError
 
 TELEGRAM_API_BASE = "https://api.telegram.org/bot"
 
@@ -44,16 +46,25 @@ TELEGRAM_KEYBOARD = {
 }
 
 class CafeTelegramBot:
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self, token: Optional[str] = None, allowed_user_ids=None):
         self.token = token or os.getenv("TELEGRAM_BOT_TOKEN")
         self.engine = decision_engine
         self.offset = 0
+        if allowed_user_ids is None:
+            try:
+                allowed_user_ids = {
+                    int(value.strip()) for value in os.getenv('TELEGRAM_ALLOWED_USER_IDS', '').split(',')
+                    if value.strip()
+                }
+            except ValueError:
+                raise ValueError('TELEGRAM_ALLOWED_USER_IDS virgülle ayrılmış sayısal kullanıcı kimlikleri olmalı.') from None
+        self.allowed_user_ids = set(allowed_user_ids)
 
     def send_message(self, chat_id: int, text: str, reply_markup: Optional[Dict] = None) -> bool:
         """Telegram API üzerinden kullanıcıya mesaj ve klavye gönderir."""
         if not self.token:
             return False
-        
+
         url = f"{TELEGRAM_API_BASE}{self.token}/sendMessage"
         payload = {
             "chat_id": chat_id,
@@ -71,7 +82,7 @@ class CafeTelegramBot:
             res_plain = requests.post(url, json=payload, timeout=8)
             return res_plain.status_code == 200
         except Exception as e:
-            print(f"[!] Mesaj gönderme hatası: {e}")
+            print(f"[!] Mesaj gönderme hatası: {type(e).__name__}")
             return False
 
     def handle_message(self, text: str) -> str:
@@ -88,16 +99,42 @@ class CafeTelegramBot:
         else:
             query = text
 
-        ans = self.engine.resolve_nl_query(query)
+        try:
+            ans = self.engine.resolve_nl_query(query)
+        except ForecastUnavailableError as exc:
+            return str(exc)
         return ans["text"]
+
+    def process_update(self, update):
+        """Yalnızca izin verilen kullanıcının özel sohbetindeki metin mesajını işler."""
+        msg = update.get('message', {})
+        user_id = msg.get('from', {}).get('id')
+        chat = msg.get('chat', {})
+        text = msg.get('text')
+        if user_id not in self.allowed_user_ids or chat.get('type') != 'private' or not isinstance(text, str):
+            return False
+        chat_id = chat['id']
+        user_name = msg['from'].get('first_name', 'Kullanıcı')
+        log_entry = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {user_name} ({chat_id}): {text}"
+        print(f"[MESAJ] {log_entry}", flush=True)
+        try:
+            with open(LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(log_entry + '\n')
+        except OSError:
+            pass
+        return self.send_message(chat_id, self.handle_message(text))
 
     def run_polling(self):
         """Gerçek Telegram botunu dinleme (long-polling) döngüsü."""
         if not self.token:
-            print("[HATA] TELEGRAM_BOT_TOKEN tanımlı değil! Lütfen token belirtin veya '--sim' ile çalıştırın.")
+            print("[HATA] TELEGRAM_BOT_TOKEN tanımlı değil!")
             return
 
-        print(f"[*] CafeERP Telegram Botu başlatılıyor... (Token: {self.token[:8]}...)")
+        if not self.allowed_user_ids:
+            print('[HATA] TELEGRAM_ALLOWED_USER_IDS tanımlı değil. Yetkili kullanıcı kimliklerini yapılandırın.')
+            return
+
+        print("[*] CafeERP Telegram Botu başlatılıyor...")
         print("[*] Telegram'dan gelen mesajlar dinleniyor. Çıkmak için Ctrl+C.")
 
         # Bot bilgisini kontrol et
@@ -107,10 +144,10 @@ class CafeTelegramBot:
                 bot_user = me_res["result"]["username"]
                 print(f"[OK] Bot bağlandı: @{bot_user}")
             else:
-                print(f"[!] Token geçersiz görünüyor: {me_res}")
+                print("[!] Telegram bot kimliği doğrulanamadı.")
                 return
         except Exception as e:
-            print(f"[!] Bağlantı hatası: {e}")
+            print(f"[!] Bağlantı hatası: {type(e).__name__}")
             return
 
         while True:
@@ -121,30 +158,13 @@ class CafeTelegramBot:
                     data = res.json()
                     for update in data.get("result", []):
                         self.offset = update["update_id"] + 1
-                        msg = update.get("message")
-                        if not msg:
-                            continue
-                        
-                        chat_id = msg["chat"]["id"]
-                        text = msg.get("text", "")
-                        user_name = msg["from"].get("first_name", "Kullanıcı")
-
-                        log_entry = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {user_name} ({chat_id}): {text}"
-                        print(f"[MESAJ] {log_entry}", flush=True)
-                        try:
-                            with open(LOG_FILE, "a", encoding="utf-8") as f:
-                                f.write(log_entry + "\n")
-                        except Exception:
-                            pass
-
-                        reply_text = self.handle_message(text)
-                        self.send_message(chat_id, reply_text)
+                        self.process_update(update)
                 time.sleep(0.5)
             except KeyboardInterrupt:
                 print("\n[*] Telegram botu durduruldu.")
                 break
             except Exception as e:
-                print(f"[!] Polling hatası: {e}")
+                print(f"[!] Polling hatası: {type(e).__name__}")
                 time.sleep(3)
 
 if __name__ == "__main__":

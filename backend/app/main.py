@@ -2,9 +2,23 @@
 CafeERP - Ana FastAPI Uygulaması
 """
 
+import sys
+from pathlib import Path
+
+# Backend dizinini sys.path'e ekle (nereden çalıştırılırsa çalıştırılsın iç importlar bozulmaz)
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.ai_routes import router as ai_router
+from fastapi.responses import JSONResponse
+from app.ai.predictor import ForecastUnavailableError
+
+try:
+    from app.api.ai_routes import router as ai_router
+except ImportError:
+    from backend.app.api.ai_routes import router as ai_router
 
 app = FastAPI(
     title="CafeERP Backend API",
@@ -23,6 +37,11 @@ app.add_middleware(
 
 # API Rotaları
 app.include_router(ai_router)
+
+@app.exception_handler(ForecastUnavailableError)
+async def forecast_unavailable_handler(request, exc):
+    """Model eksikliğini sahte tahmin üretmeden istemciye bildirir."""
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 @app.get("/")
 def root():

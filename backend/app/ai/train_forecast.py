@@ -17,6 +17,9 @@ Bu script:
 """
 
 import sqlite3
+import sys
+from contextlib import closing
+from tempfile import NamedTemporaryFile
 import pandas as pd
 import numpy as np
 import joblib
@@ -24,18 +27,34 @@ from pathlib import Path
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 DB_PATH = BASE_DIR / "data" / "sample_cafe.db"
 MODEL_DIR = Path(__file__).resolve().parent / "models"
 MODEL_FILE = MODEL_DIR / "demand_forecast.pkl"
 
-def load_and_preprocess_data():
-    print(f"[*] Veritabanı okunuyor: {DB_PATH}")
-    conn = sqlite3.connect(DB_PATH)
+def load_and_preprocess_data(db_path=None):
+    """Kalemleri önce adisyon bazında toplar; her adisyonun cirosunu yalnızca bir kez sayar."""
+    db_path = Path(db_path) if db_path is not None else DB_PATH
+    print(f"[*] Veritabanı okunuyor: {db_path}")
 
     # 1. Saatlik özet veriyi çıkar
     query = """
-    SELECT 
+    WITH item_totals AS (
+        SELECT order_id,
+            SUM(CASE WHEN product_id = 'prod_tea_glass' THEN quantity ELSE 0 END) AS tea_qty,
+            SUM(CASE WHEN product_id IN ('prod_toast_cheese', 'prod_toast_mixed') THEN quantity ELSE 0 END) AS toast_qty,
+            SUM(CASE WHEN product_id IN ('prod_latte', 'prod_flat_white', 'prod_americano', 'prod_filter', 'prod_turkish_coffee') THEN quantity ELSE 0 END) AS hot_coffee_qty,
+            SUM(CASE WHEN product_id IN ('prod_cold_brew', 'prod_iced_latte', 'prod_soda', 'prod_ayran') THEN quantity ELSE 0 END) AS cold_drink_qty
+        FROM order_items
+        GROUP BY order_id
+    )
+    SELECT
         substr(o.timestamp, 1, 10) as order_date,
         CAST(substr(o.timestamp, 12, 2) AS INTEGER) as hour,
         o.weekday,
@@ -43,17 +62,19 @@ def load_and_preprocess_data():
         o.temperature,
         COUNT(DISTINCT o.order_id) as order_count,
         SUM(o.total_amount) as total_revenue,
-        SUM(CASE WHEN oi.product_id = 'prod_tea_glass' THEN oi.quantity ELSE 0 END) as tea_qty,
-        SUM(CASE WHEN oi.product_id IN ('prod_toast_cheese', 'prod_toast_mixed') THEN oi.quantity ELSE 0 END) as toast_qty,
-        SUM(CASE WHEN oi.product_id IN ('prod_latte', 'prod_flat_white', 'prod_americano', 'prod_filter', 'prod_turkish_coffee') THEN oi.quantity ELSE 0 END) as hot_coffee_qty,
-        SUM(CASE WHEN oi.product_id IN ('prod_cold_brew', 'prod_iced_latte', 'prod_soda', 'prod_ayran') THEN oi.quantity ELSE 0 END) as cold_drink_qty
+        COALESCE(SUM(oi.tea_qty), 0) as tea_qty,
+        COALESCE(SUM(oi.toast_qty), 0) as toast_qty,
+        COALESCE(SUM(oi.hot_coffee_qty), 0) as hot_coffee_qty,
+        COALESCE(SUM(oi.cold_drink_qty), 0) as cold_drink_qty
     FROM orders o
-    JOIN order_items oi ON o.order_id = oi.order_id
+    LEFT JOIN item_totals oi ON o.order_id = oi.order_id
     GROUP BY order_date, hour, o.weekday, o.weather, o.temperature
     ORDER BY order_date, hour
     """
-    df = pd.read_sql_query(query, conn)
-    conn.close()
+    with closing(sqlite3.connect(db_path.resolve().as_uri() + '?mode=ro', uri=True)) as conn:
+        df = pd.read_sql_query(query, conn)
+    if df.empty:
+        raise ValueError("Model eğitimi için sipariş verisi bulunamadı.")
 
     print(f"[OK] Toplam {len(df)} saatlik zaman dilimi kaydı yüklendi.")
 
@@ -62,7 +83,7 @@ def load_and_preprocess_data():
     df['day_of_week'] = df['order_date'].dt.day_of_week # 0: Pazartesi, 6: Pazar
     df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
     df['is_wednesday'] = (df['day_of_week'] == 2).astype(int)
-    
+
     # Hava durumu kategorilerini sayısala dönüştür (One-Hot Encoding)
     weather_dummies = pd.get_dummies(df['weather'], prefix='weather', drop_first=False).astype(int)
     df = pd.concat([df, weather_dummies], axis=1)
@@ -70,6 +91,7 @@ def load_and_preprocess_data():
     return df
 
 def train_models():
+    """Son 30 günü ayırarak modelleri eğitir ve başarılı paketi atomik olarak kaydeder."""
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     df = load_and_preprocess_data()
 
@@ -89,6 +111,8 @@ def train_models():
     split_date = df['order_date'].max() - pd.Timedelta(days=30)
     train_mask = df['order_date'] <= split_date
     test_mask = df['order_date'] > split_date
+    if not train_mask.any() or test_mask.sum() < 2:
+        raise ValueError("Eğitim için 30 günden uzun geçmiş ve en az iki test zaman dilimi gerekir.")
 
     X_train = df.loc[train_mask, feature_cols]
     X_test = df.loc[test_mask, feature_cols]
@@ -143,7 +167,20 @@ def train_models():
         'metrics': metrics,
         'trained_at': pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
     }
-    joblib.dump(package, MODEL_FILE)
+    package['data_summary'] = {
+        'hourly_rows': len(df),
+        'total_orders': int(df['order_count'].sum()),
+        'total_revenue': round(float(df['total_revenue'].sum()), 2),
+        'revenue_aggregation': 'once_per_order',
+        'train_end': split_date.strftime('%Y-%m-%d'),
+    }
+    with NamedTemporaryFile(dir=MODEL_DIR, suffix='.pkl', delete=False) as temp:
+        temporary_path = Path(temp.name)
+    try:
+        joblib.dump(package, temporary_path)
+        temporary_path.replace(MODEL_FILE)
+    finally:
+        temporary_path.unlink(missing_ok=True)
     print(f"\n[OK] Model paketi basariyla kaydedildi: {MODEL_FILE}")
 
     # 4. Örnek Bir Gelecek Tahmini Simülasyonu

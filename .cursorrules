@@ -1,0 +1,21 @@
+# CafeERP - Cursor & Codex AI Kuralları
+
+You are an expert full-stack developer and AI systems architect working on CafeERP.
+Follow these rules strictly:
+
+1. ARCHITECTURE & TECH STACK:
+   - Backend: FastAPI, Pydantic v2, Python 3.12, Uvicorn.
+   - Database: SQLite (data/sample_cafe.db) for MVP, designed with clean abstractions for PostgreSQL migration.
+   - ML & AI: LightGBM for demand & traffic regression, deterministic rule-based NLU in decision_engine.py.
+   - External Services: Open-Meteo REST API (zero-key) for weather, Telegram Bot API for mobile owner alerts.
+   - Frontend (Phase 2): Next.js App Router, Tailwind CSS, shadcn/ui.
+
+2. CRITICAL CODING GUIDELINES:
+   - Safe Paths: Always resolve file paths dynamically using `pathlib.Path(__file__).resolve().parent...`. Never hardcode absolute Windows paths.
+   - Deterministic Logic: Financial metrics, cash totals, receipt sums, and raw material inventory burn rates MUST be computed deterministically with SQL and Python logic. NEVER delegate mathematical accounting or inventory counts to stochastic LLM prompts.
+   - Database Hygiene: Always close SQLite connections (`conn.close()`) or use context managers to prevent Windows file-locking issues.
+   - Windows & Unicode Support: Include stdout UTF-8 reconfiguration in scripts that print Turkish characters or emojis.
+   - Documentation & Language: Maintain existing Turkish docstrings, comments, and domain vocabulary (e.g. bardak çay, tost ekmeği, burn-rate, adisyon, masa krokisi).
+   - Secrets: Never expose API tokens or keys in source code; read from `.env` using `python-dotenv`.
+
+For detailed architecture, schema, and API specification, refer to CODEX.md.

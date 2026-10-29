@@ -1,5 +1,8 @@
-# Documentation
-docs/
+# Yerel rapor girdileri ve uretilen belgeler
+docs/templates/*
+!docs/templates/README.md
+docs/output/
+*.pdf
 
 # Ortam değişkenleri
 .env
@@ -24,3 +27,10 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Python onbellekleri ve yerel ortamlar
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/

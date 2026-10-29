@@ -8,21 +8,46 @@ Eğitilmiş LightGBM modellerini (demand_forecast.pkl) kullanarak:
 
 import joblib
 import pandas as pd
+import pickle
+from threading import Lock
 from pathlib import Path
 
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "demand_forecast.pkl"
 
+class ForecastUnavailableError(RuntimeError):
+    """Eğitilmiş model kullanılamadığında tahmin yerine açık hata döndürür."""
+
 class DemandPredictor:
-    def __init__(self):
-        if not MODEL_PATH.exists():
-            raise FileNotFoundError(f"Model dosyası bulunamadı: {MODEL_PATH}")
-        
-        self.package = joblib.load(MODEL_PATH)
-        self.models = self.package['models']
-        self.feature_cols = self.package['feature_cols']
+    def __init__(self, model_path=None):
+        self.model_path = Path(model_path) if model_path is not None else MODEL_PATH
+        self.package = None
+        self._load_lock = Lock()
+
+    def _ensure_loaded(self):
+        """Modeli ilk tahminde yükler; model eksikken satış API'si çalışmaya devam eder."""
+        with self._load_lock:
+            if self.package is not None:
+                return
+            try:
+                package = joblib.load(self.model_path)
+                models = package['models']
+                feature_cols = package['feature_cols']
+                if not feature_cols or any(
+                    not callable(getattr(models[key], 'predict', None))
+                    for key in ('traffic', 'tea', 'toast', 'hot_coffee', 'cold_drink', 'revenue')
+                ):
+                    raise ValueError('Geçersiz model paketi')
+            except (OSError, ValueError, EOFError, ImportError, KeyError, TypeError, AttributeError, pickle.UnpicklingError) as exc:
+                raise ForecastUnavailableError(
+                    "Talep tahmin modeli kullanılamıyor. Modeli train_forecast.py ile yeniden eğitin."
+                ) from exc
+            self.models = models
+            self.feature_cols = feature_cols
+            self.package = package
 
     def predict_hour(self, hour: int, day_of_week: int, weather: str, temperature: int):
         """Tek bir saatlik dilim için tahmin üretir."""
+        self._ensure_loaded()
         is_weekend = 1 if day_of_week in [5, 6] else 0
         is_wednesday = 1 if day_of_week == 2 else 0
 
@@ -39,12 +64,13 @@ class DemandPredictor:
         }
         df_in = pd.DataFrame([row])[self.feature_cols]
 
-        traffic = int(round(max(0, self.models['traffic'].predict(df_in)[0])))
-        tea = int(round(max(0, self.models['tea'].predict(df_in)[0])))
-        toast = int(round(max(0, self.models['toast'].predict(df_in)[0])))
-        hot_coffee = int(round(max(0, self.models['hot_coffee'].predict(df_in)[0])))
-        cold_drink = int(round(max(0, self.models['cold_drink'].predict(df_in)[0])))
-        revenue = round(float(max(0, self.models['revenue'].predict(df_in)[0])), 2)
+        # Tek satırlık çıkarımda çok iş parçacığı açma maliyetini önle.
+        traffic = int(round(max(0, self.models['traffic'].predict(df_in, num_threads=1)[0])))
+        tea = int(round(max(0, self.models['tea'].predict(df_in, num_threads=1)[0])))
+        toast = int(round(max(0, self.models['toast'].predict(df_in, num_threads=1)[0])))
+        hot_coffee = int(round(max(0, self.models['hot_coffee'].predict(df_in, num_threads=1)[0])))
+        cold_drink = int(round(max(0, self.models['cold_drink'].predict(df_in, num_threads=1)[0])))
+        revenue = round(float(max(0, self.models['revenue'].predict(df_in, num_threads=1)[0])), 2)
 
         return {
             "hour": hour,

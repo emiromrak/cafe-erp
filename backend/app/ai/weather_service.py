@@ -6,7 +6,13 @@ LightGBM modelinin beklediği formatta ('Güneşli', 'Bulutlu', 'Yağmurlu', 'R�
 """
 
 import requests
+import os
+import math
+from pathlib import Path
+from dotenv import load_dotenv
 from typing import Dict, Any
+
+load_dotenv(Path(__file__).resolve().parents[3] / '.env')
 
 # Varsayılan Konum: İstanbul / Kadıköy (Moda Kafe Bölgesi)
 DEFAULT_LATITUDE = 40.99
@@ -22,31 +28,43 @@ def map_wmo_code_to_weather(wmo_code: int, windspeed: float) -> str:
     """
     if windspeed >= 28.0:
         return "Rüzgarlı"
-    
+
     # Yağmur, çisenti veya fırtına
     if (50 <= wmo_code <= 67) or (80 <= wmo_code <= 82) or (95 <= wmo_code <= 99):
         return "Yağmurlu"
-    
+
     # Parçalı bulutlu, kapalı, sisli
     if wmo_code in [1, 2, 3, 45, 48]:
         return "Bulutlu"
-    
+
     # Açık / Güneşli
     return "Güneşli"
 
-def get_current_weather(lat: float = DEFAULT_LATITUDE, lon: float = DEFAULT_LONGITUDE) -> Dict[str, Any]:
+def _coordinate(value, default, limit):
+    """Eksik veya geçersiz konum ayarında varsayılan koordinatı kullanır."""
+    try:
+        result = float(value)
+        return result if math.isfinite(result) and abs(result) <= limit else default
+    except (TypeError, ValueError):
+        return default
+
+def get_current_weather(lat: float = None, lon: float = None) -> Dict[str, Any]:
     """
     Canlı hava durumunu döner. İnternet kesilirse veya API yanıt vermezse
     güvenli yedek (fallback) değerler döner.
     """
+    lat = _coordinate(lat if lat is not None else os.getenv('CAFE_LATITUDE'), DEFAULT_LATITUDE, 90)
+    lon = _coordinate(lon if lon is not None else os.getenv('CAFE_LONGITUDE'), DEFAULT_LONGITUDE, 180)
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
     try:
         response = requests.get(url, timeout=4)
         if response.status_code == 200:
-            data = response.json().get("current_weather", {})
-            temp = round(data.get("temperature", 18.0))
-            wind = data.get("windspeed", 10.0)
-            code = data.get("weathercode", 0)
+            data = response.json()["current_weather"]
+            temp = round(float(data["temperature"]))
+            wind = float(data["windspeed"])
+            code = int(data["weathercode"])
+            if not math.isfinite(wind):
+                raise ValueError("Geçersiz rüzgar hızı")
             condition = map_wmo_code_to_weather(code, wind)
             return {
                 "temperature": temp,

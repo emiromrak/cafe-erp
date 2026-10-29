@@ -11,6 +11,7 @@ import sqlite3
 import re
 import sys
 from datetime import datetime
+from contextlib import closing
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -32,7 +33,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 DB_PATH = BASE_DIR / "data" / "sample_cafe.db"
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH.resolve().as_uri() + '?mode=ro', uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -57,55 +58,52 @@ class CafeDecisionEngine:
         Gerçekleşen satış ve ciro özetini veritabanından çeker.
         Eğer hedef tarih verilmezse ve bugüne ait sipariş yoksa, son aktif günün verilerini sunar.
         """
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
 
-        # En son tarihli günü öğren
-        cursor.execute("SELECT MAX(substr(timestamp, 1, 10)) FROM orders")
-        latest_db_date = cursor.fetchone()[0]
+            # En son tarihli günü öğren
+            cursor.execute("SELECT MAX(substr(timestamp, 1, 10)) FROM orders")
+            latest_db_date = cursor.fetchone()[0]
 
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        query_date = target_date or today_str
-        is_today = (query_date == today_str)
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            query_date = target_date or today_str
 
-        # Sorgulanan gün için sipariş sayısı
-        cursor.execute("SELECT COUNT(*) FROM orders WHERE substr(timestamp, 1, 10) = ?", (query_date,))
-        count = cursor.fetchone()[0]
+            # Sorgulanan gün için sipariş sayısı
+            cursor.execute("SELECT COUNT(*) FROM orders WHERE substr(timestamp, 1, 10) = ?", (query_date,))
+            count = cursor.fetchone()[0]
 
-        is_fallback = False
-        display_date = query_date
-        if count == 0 and is_today:
-            # Bugün henüz sipariş girilmediyse son aktif güne dön
-            query_date = latest_db_date
-            display_date = latest_db_date
-            is_fallback = True
+            is_fallback = False
+            display_date = query_date
+            if count == 0 and target_date is None and latest_db_date is not None:
+                # Bugün henüz sipariş girilmediyse son aktif güne dön
+                query_date = latest_db_date
+                display_date = latest_db_date
+                is_fallback = True
 
-        # Satış özetini al
-        cursor.execute("""
-            SELECT 
-                COUNT(DISTINCT order_id) as total_orders,
-                COALESCE(SUM(total_amount), 0) as total_revenue,
-                COALESCE(AVG(total_amount), 0) as avg_order_amount,
-                SUM(CASE WHEN payment_method = 'Kredi Kartı' THEN total_amount ELSE 0 END) as card_revenue,
-                SUM(CASE WHEN payment_method = 'Nakit' THEN total_amount ELSE 0 END) as cash_revenue
-            FROM orders
-            WHERE substr(timestamp, 1, 10) = ?
-        """, (query_date,))
-        stats = dict(cursor.fetchone())
+            # Satış özetini al
+            cursor.execute("""
+                SELECT
+                    COUNT(DISTINCT order_id) as total_orders,
+                    COALESCE(SUM(total_amount), 0) as total_revenue,
+                    COALESCE(AVG(total_amount), 0) as avg_order_amount,
+                    COALESCE(SUM(CASE WHEN payment_method = 'Kredi Kartı' THEN total_amount ELSE 0 END), 0) as card_revenue,
+                    COALESCE(SUM(CASE WHEN payment_method = 'Nakit' THEN total_amount ELSE 0 END), 0) as cash_revenue
+                FROM orders
+                WHERE substr(timestamp, 1, 10) = ?
+            """, (query_date,))
+            stats = dict(cursor.fetchone())
 
-        # En çok satan 5 ürünü al
-        cursor.execute("""
-            SELECT oi.product_name, SUM(oi.quantity) as total_qty, SUM(oi.quantity * oi.unit_price) as product_rev
-            FROM orders o
-            JOIN order_items oi ON o.order_id = oi.order_id
-            WHERE substr(o.timestamp, 1, 10) = ?
-            GROUP BY oi.product_name
-            ORDER BY total_qty DESC
-            LIMIT 5
-        """, (query_date,))
-        top_items = [dict(row) for row in cursor.fetchall()]
-
-        conn.close()
+            # En çok satan 5 ürünü al
+            cursor.execute("""
+                SELECT oi.product_name, SUM(oi.quantity) as total_qty, SUM(oi.quantity * oi.unit_price) as product_rev
+                FROM orders o
+                JOIN order_items oi ON o.order_id = oi.order_id
+                WHERE substr(o.timestamp, 1, 10) = ?
+                GROUP BY oi.product_name
+                ORDER BY total_qty DESC
+                LIMIT 5
+            """, (query_date,))
+            top_items = [dict(row) for row in cursor.fetchall()]
 
         # Mesaj metnini derle
         date_header = f"{display_date}"
@@ -114,7 +112,7 @@ class CafeDecisionEngine:
         else:
             intro = f"📊 *{date_header} Tarihli Satış & Kasa Özeti:*\n"
 
-        top_items_text = "\n".join([f"  • *{item['product_name']}:* {item['total_qty']} adet ({item['product_rev']:,.0f} TL)" for item in top_items])
+        top_items_text = "\n".join([f"  • *{item['product_name']}:* {item['total_qty']} adet ({item['product_rev']:,.0f} TL)" for item in top_items]) or "  • Bu tarihte satış kaydı bulunmuyor."
 
         text = (
             f"{intro}\n"
@@ -193,11 +191,10 @@ class CafeDecisionEngine:
         Mevcut hammadde stoklarını DB'den çeker, LightGBM erime hızını hesaplar
         ve erken tükenme alarmları üretir.
         """
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, name, category, unit, current_stock, min_alert FROM raw_materials")
-        rows = [dict(r) for r in cursor.fetchall()]
-        conn.close()
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, category, unit, current_stock, min_alert FROM raw_materials")
+            rows = [dict(r) for r in cursor.fetchall()]
 
         # Kritik eşiğin altına inmiş olanları bul
         low_stocks = [r for r in rows if r["current_stock"] <= r["min_alert"]]
@@ -218,7 +215,7 @@ class CafeDecisionEngine:
 
         # Metin hazırla
         text_lines = ["🥛 *Kritik Stok & Hammadde Erime Raporu*\n"]
-        
+
         if burn_alerts:
             text_lines.append("🚨 *Yoğunluk Sebebiyle Bugün Tükenecekler (Erken Uyarı):*")
             for alert in burn_alerts:
@@ -331,7 +328,7 @@ class CafeDecisionEngine:
                 text += f"⚡ *Öneri:* Saat {peak['hour']-1:02d}:30 ile {peak['hour']+1:02d}:30 arasında tezgaha en az +1 barista / personel desteği sağlanmalıdır."
             else:
                 text += "✅ *Öneri:* Bugünkü yoğunluk seviyesi tek ana barista ile rahatlıkla yürütülebilir seviyededir."
-            
+
             return {
                 "intent": "SHIFT_ADVICE",
                 "title": "👥 Vardiya Planlama Tavsiyesi",

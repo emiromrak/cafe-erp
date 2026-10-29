@@ -5,10 +5,14 @@ RESTful servisleri sunar.
 """
 
 from fastapi import APIRouter, Query
+from datetime import date as Date
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
-from app.ai.decision_engine import decision_engine
+try:
+    from app.ai.decision_engine import decision_engine
+except ImportError:
+    from backend.app.ai.decision_engine import decision_engine
 
 router = APIRouter(prefix="/api/ai", tags=["AI & Decision Engine"])
 
@@ -22,9 +26,9 @@ class QueryResponse(BaseModel):
     quick_replies: List[str]
 
 @router.get("/sales-summary", summary="Günlük Satış & Kasa Özeti")
-def get_sales_summary(date: Optional[str] = Query(None, description="Tarih formatı: YYYY-MM-DD")):
+def get_sales_summary(date: Optional[Date] = Query(None, description="Tarih formatı: YYYY-MM-DD")):
     """Gerçekleşen günlük ciro, fiş sayısı, ortalama sepet ve en çok satan ürünleri döner."""
-    return decision_engine.get_sales_summary(target_date=date)
+    return decision_engine.get_sales_summary(target_date=date.isoformat() if date else None)
 
 @router.get("/traffic-forecast", summary="Günün Yoğunluk ve Talep Tahmini")
 def get_traffic_forecast():
