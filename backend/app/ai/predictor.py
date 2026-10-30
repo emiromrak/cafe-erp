@@ -82,80 +82,55 @@ class DemandPredictor:
             "predicted_revenue": revenue
         }
 
-    def simulate_day_burn_rate(self, day_of_week: int, weather: str, temperature: int, current_stocks: dict):
-        """
-        Günün 08:00 - 22:00 saatleri arasındaki tüketimi simüle eder.
-        current_stocks örneği:
-        {
-            "rm_tea_leaf": 3000.0,   # gram
-            "rm_milk_whole": 12000.0, # ml
-            "rm_bread_toast": 80.0,   # dilim
-            "rm_cheese_kasar": 2000.0 # gram
-        }
-        """
-        hourly_forecasts = []
-        burn_alerts = []
+    def simulate_day_burn_rate(self, day_of_week: int, weather: str, temperature: int,
+                               current_stocks: dict, recipe_mix=None, start_hour=8, start_minute=0):
+        """SQL reçetelerinden, günün kalan saatleri için tahmini tüketim üretir.
 
-        stocks = current_stocks.copy()
-        out_of_stock_tracker = {}
-
-        for h in range(8, 23):
-            pred = self.predict_hour(h, day_of_week, weather, temperature)
+        Gerçek stok veya hareket defteri değiştirilmez. Grup içindeki ürün
+        dağılımı varsayımdır; reçetesi olmayan gruplar ayrıca raporlanır.
+        """
+        from decimal import Decimal
+        hourly_forecasts, burn_alerts = [], []
+        stocks = {key: Decimal(str(value)) for key, value in current_stocks.items()}
+        depleted = set()
+        for hour in range(max(8, start_hour), 23):
+            pred = self.predict_hour(hour, day_of_week, weather, temperature)
             hourly_forecasts.append(pred)
-
-            # Reçete bazlı saatlik tüketim hesabı
-            # 1 bardak çay = 3g çay yaprağı
-            tea_leaf_needed = pred['predicted_tea_glasses'] * 3.0
-            # Sıcak kahvelerin ortalama %70'i sütlü (Latte/Flat White): ~180 ml süt
-            milk_needed = pred['predicted_hot_coffee'] * 0.70 * 180.0
-            # 1 tost = 2 dilim ekmek, 55g kaşar
-            bread_needed = pred['predicted_toasts'] * 2.0
-            cheese_needed = pred['predicted_toasts'] * 55.0
-
-            # Stok eksilt ve tükenme anını yakala
-            materials = [
-                ("rm_tea_leaf", "Çay Yaprağı (Dökme)", tea_leaf_needed, "gram"),
-                ("rm_milk_whole", "Tam Yağlı Süt", milk_needed, "ml"),
-                ("rm_bread_toast", "Tost Ekmeği", bread_needed, "dilim"),
-                ("rm_cheese_kasar", "Kaşar Peyniri", cheese_needed, "gram"),
-            ]
-
-            for rm_id, name, needed, unit in materials:
-                if rm_id in stocks:
-                    stocks[rm_id] -= needed
-                    if stocks[rm_id] <= 0 and rm_id not in out_of_stock_tracker:
-                        out_of_stock_tracker[rm_id] = h
-                        burn_alerts.append({
-                            "material_id": rm_id,
-                            "material_name": name,
-                            "run_out_hour": f"{h:02d}:00",
-                            "severity": "CRITICAL" if h <= 17 else "WARNING",
-                            "message": f"[UYARI] {name} stogunuz yogunluk sebebiyle saat {h:02d}:00 civarinda tukenebilir! Lutfen erken tedarik saglayin."
-                        })
-
-        total_daily_revenue = sum(f['predicted_revenue'] for f in hourly_forecasts)
-        total_daily_customers = sum(f['predicted_traffic'] for f in hourly_forecasts)
-
-        # Vardiya tavsiyesi
-        shift_recommendation = None
-        peak_hour = max(hourly_forecasts, key=lambda x: x['predicted_traffic'])
-        if peak_hour['predicted_traffic'] >= 25:
-            shift_recommendation = {
-                "peak_hour": f"{peak_hour['hour']:02d}:00",
-                "traffic": peak_hour['predicted_traffic'],
-                "message": f"[VARDIYA] Saat {peak_hour['hour']:02d}:00 piki icin tezgaha +1 personel/barista eklemeniz onerilir (Beklenen saatlik siparis: {peak_hour['predicted_traffic']})."
-            }
-
+            fraction = Decimal(60-start_minute)/60 if hour == start_hour else Decimal(1)
+            needed = {}
+            for key, lines in (recipe_mix or {}).items():
+                for line in lines:
+                    material_id = line['material_id']
+                    quantity = Decimal(pred.get(key,0)) * line['quantity'] * fraction
+                    if material_id not in needed:
+                        needed[material_id] = [line, Decimal(0)]
+                    needed[material_id][1] += quantity
+            for material_id, (line, quantity) in needed.items():
+                if material_id not in stocks or quantity <= 0:
+                    continue
+                stocks[material_id] -= quantity
+                if stocks[material_id] <= 0 and material_id not in depleted:
+                    depleted.add(material_id)
+                    burn_alerts.append({
+                        'material_id':material_id, 'material_name':line['name'],
+                        'run_out_hour':f'{hour:02d}:00',
+                        'severity':'CRITICAL' if hour <= 17 else 'WARNING',
+                        'message':f"{line['name']} kalan gün içinde {hour:02d}:00 saat diliminde tükenebilir."
+                    })
+        peak = max(hourly_forecasts,key=lambda f:f['predicted_traffic'],default=None)
+        shift = None
+        if peak and peak['predicted_traffic'] >= 25:
+            shift = {'peak_hour':f"{peak['hour']:02d}:00", 'traffic':peak['predicted_traffic'],
+                     'message':'Yoğun saat için ek personel desteği planlayın.'}
         return {
-            "summary": {
-                "total_estimated_revenue": round(total_daily_revenue, 2),
-                "total_estimated_customers": total_daily_customers,
-                "weather": weather,
-                "temperature": temperature
+            'summary': {
+                'total_estimated_revenue':round(sum(f['predicted_revenue'] for f in hourly_forecasts),2),
+                'total_estimated_customers':sum(f['predicted_traffic'] for f in hourly_forecasts),
+                'weather':weather, 'temperature':temperature,
+                'start_hour':start_hour, 'start_minute':start_minute,
+                'recipe_groups':list(recipe_mix or {})
             },
-            "alerts": burn_alerts,
-            "shift_recommendation": shift_recommendation,
-            "hourly_timeline": hourly_forecasts
+            'alerts':burn_alerts, 'shift_recommendation':shift, 'hourly_timeline':hourly_forecasts
         }
 
 # Uygulama genelinde paylaşılan tek örnek

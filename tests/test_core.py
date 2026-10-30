@@ -1,6 +1,7 @@
 """Karar destek çekirdeğinin ciro, hata ve erişim kuralları için regresyon testleri."""
 
 import io
+from decimal import Decimal
 import os
 import sqlite3
 import importlib.util
@@ -188,6 +189,30 @@ class DatabaseTests(unittest.TestCase):
 
 
 class ForecastTests(unittest.TestCase):
+    def test_remaining_day_uses_sql_recipe_and_current_hour_fraction(self):
+        predictor = DemandPredictor()
+        def forecast(hour, *args):
+            return {'hour':hour,'predicted_traffic':1,'predicted_tea_glasses':2,'predicted_revenue':25}
+        recipe = {'predicted_tea_glasses':[{'material_id':'leaf','name':'Yaprak','unit':'gram','quantity':Decimal('4')}]}
+        with patch.object(predictor,'predict_hour',side_effect=forecast):
+            result = predictor.simulate_day_burn_rate(0,'Güneşli',18,{'leaf':Decimal('5')},recipe,21,30)
+            closed = predictor.simulate_day_burn_rate(0,'Güneşli',18,{'leaf':Decimal('5')},recipe,23,0)
+        self.assertEqual([f['hour'] for f in result['hourly_timeline']],[21,22])
+        self.assertEqual(result['alerts'][0]['run_out_hour'],'22:00')
+        self.assertEqual(closed['hourly_timeline'],[])
+        self.assertEqual(closed['alerts'],[])
+
+    def test_daily_brief_never_claims_sufficient_stock_when_stock_is_critical(self):
+        engine=engine_module.CafeDecisionEngine()
+        traffic={'weather':{'description':'Test'},'total_estimated_revenue':0,
+                 'total_estimated_traffic':0,'peak_hour':{'hour':10,'predicted_traffic':0}}
+        with patch.object(engine,'get_sales_summary',return_value={}), \
+             patch.object(engine,'get_traffic_and_forecast',return_value=traffic), \
+             patch.object(engine,'get_stock_and_burn_rate',return_value={'burn_alerts':[],'low_stocks':[{'id':'leaf'}]}):
+            brief=engine.get_daily_brief()['formatted_text']
+        self.assertIn('Kritik stok var',brief)
+        self.assertNotIn('yeterli görünüyor',brief)
+
     def test_corrupt_model_has_clear_error(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'invalid.pkl'
@@ -204,7 +229,8 @@ class ForecastTests(unittest.TestCase):
                 'predicted_toasts': 0, 'predicted_hot_coffee': 0, 'predicted_revenue': 25,
             }
         with patch.object(predictor, 'predict_hour', side_effect=forecast):
-            result = predictor.simulate_day_burn_rate(0, 'Güneşli', 18, stocks)
+            result = predictor.simulate_day_burn_rate(0, 'Güneşli', 18, stocks, recipe_mix={
+                'predicted_tea_glasses':[{'material_id':'rm_tea_leaf','name':'Çay','unit':'gram','quantity':Decimal('3')}]})
         self.assertEqual(stocks['rm_tea_leaf'], 7.0)
         self.assertEqual(len(result['alerts']), 1)
         self.assertEqual(result['alerts'][0]['run_out_hour'], '10:00')

@@ -15,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.database import get_engine
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
+from app.stock_service import forecast_recipe_mix
 from contextlib import closing
 from typing import Dict, Any, List
 
@@ -66,7 +68,7 @@ class CafeDecisionEngine:
             # En son tarihli günü öğren
             latest_db_date = conn.execute(sql_text("SELECT MAX(substr(timestamp, 1, 10)) FROM orders")).scalar()
 
-            today_str = datetime.now().strftime("%Y-%m-%d")
+            today_str = datetime.now(ZoneInfo('Europe/Istanbul')).strftime("%Y-%m-%d")
             query_date = target_date or today_str
 
             # Sorgulanan gün için sipariş sayısı
@@ -136,7 +138,7 @@ class CafeDecisionEngine:
         """
         Canlı hava durumu ve LightGBM modelini kullanarak günün yoğunluk ve ciro tahminini döner.
         """
-        now = datetime.now()
+        now = datetime.now(ZoneInfo('Europe/Istanbul'))
         day_of_week = now.weekday() # 0: Pazartesi ... 6: Pazar
         weather_info = get_current_weather()
 
@@ -194,26 +196,32 @@ class CafeDecisionEngine:
         with closing(get_db_connection()) as conn:
             result = conn.execute(sql_text("SELECT id, name, category, unit, current_stock, min_alert FROM raw_materials"))
             rows = [dict(r) for r in result.mappings()]
+            recipe_mix, recipe_warnings = forecast_recipe_mix(conn)
 
         # Kritik eşiğin altına inmiş olanları bul
         low_stocks = [r for r in rows if r["current_stock"] <= r["min_alert"]]
 
         # Reçete simülasyonu için stok sözlüğü oluştur
-        stock_dict = {r["id"]: float(r["current_stock"]) for r in rows}
+        stock_dict = {r["id"]: r["current_stock"] for r in rows}
 
-        now = datetime.now()
+        now = datetime.now(ZoneInfo('Europe/Istanbul'))
         weather_info = get_current_weather()
         burn_sim = self.predictor.simulate_day_burn_rate(
             day_of_week=now.weekday(),
             weather=weather_info["weather"],
             temperature=weather_info["temperature"],
-            current_stocks=stock_dict
+            current_stocks=stock_dict,
+            recipe_mix=recipe_mix,
+            start_hour=now.hour,
+            start_minute=now.minute
         )
 
         burn_alerts = burn_sim["alerts"]
 
         # Metin hazırla
         text_lines = ["🥛 *Kritik Stok & Hammadde Erime Raporu*\n"]
+        if recipe_warnings:
+            text_lines.append('ℹ️ Tahmin kapsamı sınırlı; bazı ürün grupları eksik reçete veya model kapsamı nedeniyle hesaplanamıyor. Ürün dağılımı geçmiş satış paylarından tahmin edilir.\n')
 
         if burn_alerts:
             text_lines.append("🚨 *Yoğunluk Sebebiyle Bugün Tükenecekler (Erken Uyarı):*")
@@ -233,6 +241,7 @@ class CafeDecisionEngine:
         return {
             "low_stocks": low_stocks,
             "burn_alerts": burn_alerts,
+            "forecast_warnings": recipe_warnings,
             "formatted_text": text
         }
 
@@ -244,7 +253,7 @@ class CafeDecisionEngine:
 
         text = (
             f"📋 *CafeERP Günlük Yönetici Brifingi*\n"
-            f"📅 Tarih: {datetime.now().strftime('%d.%m.%Y')} | {traffic['weather']['description']}\n\n"
+            f"📅 Tarih: {datetime.now(ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y')} | {traffic['weather']['description']}\n\n"
             f"🎯 *Günün Özeti & Hedefler:*\n"
             f"  • Beklenen Ciro: ~{traffic['total_estimated_revenue']:,.0f} TL\n"
             f"  • Beklenen Masa: ~{traffic['total_estimated_traffic']} müşteri\n"
@@ -254,8 +263,12 @@ class CafeDecisionEngine:
 
         if stock["burn_alerts"]:
             text += f"  • 🚨 {stock['burn_alerts'][0]['message']}\n"
+        elif stock['low_stocks']:
+            text += '  • ⚠️ Kritik stok var; tükenme tahmini olmasa da tedarik gereksinimini kontrol edin.\n'
+        elif stock.get('forecast_warnings'):
+            text += '  • ℹ️ Stok tahmini tüm menüyü kapsamıyor; yeterlilik için stok raporunu kontrol edin.\n'
         else:
-            text += "  • ✅ Stok durumu gün boyu operasyon için yeterli görünüyor.\n"
+            text += "  • ✅ Kalan saatler için hesaplanan stok tahmininde tükenme uyarısı yok.\n"
 
         if traffic["peak_hour"]["predicted_traffic"] >= 25:
             text += f"  • 👥 Saat {traffic['peak_hour']['hour']:02d}:00 piki için tezgaha destek planlayın.\n"
