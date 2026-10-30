@@ -7,11 +7,11 @@
 ## 🌟 Öne Çıkan Özellikler
 
 - **🧠 Makine Öğrenmesi ile Talep & Ciro Tahmini:** LightGBM regresyon modeli, geçmiş 6 aylık saatlik veriyi ve canlı hava durumu koşullarını harmanlayarak günün pik saatlerini ve beklenen satış hacmini öngörür.
-- **🥛 Stok & Erime Hızı (Burn-Rate) Simülasyonu:** Yoğunluk tahminine göre çay, süt, ekmek ve kaşarın tükenme saatini hesaplar. Gerçek siparişten reçeteye bağlı otomatik stok düşümü Faz 3 kapsamındadır.
+- **🥛 Stok & Erime Hızı (Burn-Rate) Simülasyonu:** Yoğunluk tahminine göre çay, süt, ekmek ve kaşarın tükenme saatini hesaplar. Gerçek siparişten reçeteye bağlı otomatik stok düşümü Aşama 3 kapsamındadır.
 - **🌤️ Canlı Hava Durumu Entegrasyonu:** Open-Meteo REST API ile sıfır konfigürasyon ve ücretsiz olarak kafe bölgesinin sıcaklık ve yağış durumunu çeker.
 - **📱 Cepteki Müdür (Telegram Bot Asistanı):** Kafe sahibine sabah brifingi sunar, klavye butonları ve serbest Türkçe NLU motoru ile anlık ciro, yoğunluk ve stok sorgulama imkanı sağlar.
 - **⚡ Halüsinasyonsuz Karar Motoru (LLM-less NLU):** Finansal ciro ve stok hesaplamalarında harici LLM maliyeti ve halüsinasyon riski olmadan %100 matematiksel doğrulukla çalışan Türkçe kural motoru.
-- **🍽️ Dokunmatik POS & Mobil Garson Terminali (Faz 2):** Tablet üzerinden hızlı kasa satışı, masa krokisi, mutfak ekranı (KDS) ve garsonun masada cep telefonundan sipariş alabilmesi.
+- **🍽️ Dokunmatik POS & Mobil Garson Terminali (Aşama 2–4):** Tablet üzerinden hızlı kasa satışı, masa krokisi, mutfak ekranı (KDS) ve garsonun masada cep telefonundan sipariş alabilmesi.
 
 ---
 
@@ -19,7 +19,7 @@
 
 ```mermaid
 flowchart TD
-    subgraph Istemciler ["İstemciler (Faz 2)"]
+    subgraph Istemciler ["İstemciler (Aşama 2–4)"]
         POS["📱 Kasa POS Terminali"]
         Garson["📲 Mobil Garson PWA"]
         KDS["🍳 Mutfak/Barista KDS"]
@@ -50,7 +50,7 @@ flowchart TD
 - **Backend:** Python 3.12, FastAPI, Uvicorn, Pydantic v2
 - **Yapay Zeka & Veri Bilimi:** LightGBM, Pandas, Scikit-learn, Joblib
 - **Veritabanı:** PostgreSQL (örnek SQLite verisinden aktarılmış 37.000+ sipariş)
-- **Frontend (Yol Haritası):** Next.js 14/15, Tailwind CSS, shadcn/ui
+- **Frontend:** Next.js 16, Tailwind CSS, shadcn/ui
 - **Harici API'ler:** Open-Meteo API, Telegram Bot API
 
 ---
@@ -102,6 +102,9 @@ docker compose up -d --wait api
 
 API: http://localhost:8000 — Swagger: http://localhost:8000/docs
 
+POS ve mutfak arayüzü için `docker compose up -d --build --wait frontend` çalıştırın.
+Arayüz: http://localhost:3000. Ayrıntılar: [Frontend kılavuzu](frontend/README.md).
+
 Kapatmak için `docker compose down` kullanın. Dev Container, Telegram ve
 veri saklama ayrıntıları: [Docker kılavuzu](docs/DOCKER.md).
 
@@ -147,11 +150,14 @@ python backend/app/ai/train_forecast.py
 
 ## 🗺️ Geliştirme Yol Haritası (Roadmap)
 
-- [x] **Faz 1: Çekirdek Veritabanı & Simülatör:** Menü, reçeteler, masalar ve 37.000+ geçmiş sipariş verisi.
-- [x] **Faz 4: Yapay Zeka & Tahmin Katmanı:** LightGBM talep modeli, reçete burn-rate, hava durumu servisi, NLU karar motoru, Telegram botu.
-- [ ] **Faz 2: Kullanıcı Arayüzü & Frontend MVP (Sıradaki Adım):** Next.js PWA ile dokunmatik tablet POS ekranı, masa krokisi, mobil garson el terminali ve KDS mutfak ekranı.
-- [ ] **Faz 3: Reçete ve Stok Düşüm Olay Motoru:** Sipariş kapandığında hammadde stoklarını anlık eksilten servis.
-- [ ] **Faz 5: Pilot Kafe Saha Denemesi:** Gerçek işletmede canlı test.
+- [x] **Temel altyapı:** Örnek veri, AI karar destek servisleri, Telegram, Docker/Dev Container, PostgreSQL/Alembic ve menü/masa listeleme API'leri.
+- [x] **Aşama 1 — Tamamlandı:** Adisyon, kalem, hazırlık durumu ve ödeme backend'i; güvenli tekrar istekler ve doğru satış raporlama.
+- [x] **Aşama 2 — Tamamlandı:** Tek masa için uçtan uca POS ve basit mutfak ekranı.
+- [ ] **Aşama 3 (sıradaki):** SQL reçeteleri ve gerçek stok hareketleri.
+- [ ] **Aşama 4:** Erişim kontrolü, mobil garson PWA, canlı KDS ve gelişmiş ödeme akışları.
+- [ ] **Aşama 5:** Yedekleme, mutabakat ve pilot kafe doğrulaması.
+
+Ayrıntılı kapsam ve her aşamanın çıkış ölçütleri: [güncel yol haritası](docs/ROADMAP.md).
 
 ---
 
@@ -163,4 +169,5 @@ python backend/app/ai/train_forecast.py
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md):** Sistem mimarisi ve PostgreSQL şeması.
 - **[docs/MODULES_AND_FLOWS.md](docs/MODULES_AND_FLOWS.md):** Operasyonel akışlar (POS, KDS, Garson).
 - **[docs/FISCAL_AND_MVP_STRATEGY.md](docs/FISCAL_AND_MVP_STRATEGY.md):** Türkiye ÖKC ve mali mevzuat yaklaşımı.
-- **[docs/ROADMAP.md](docs/ROADMAP.md):** Faz bazlı geliştirme planı.
+- **[docs/ROADMAP.md](docs/ROADMAP.md):** Aşama bazlı geliştirme planı.
+- **[docs/ORDERS.md](docs/ORDERS.md):** Adisyon/ödeme API sözleşmesi ve güncelleme komutları.

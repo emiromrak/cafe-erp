@@ -88,7 +88,7 @@ cafe_erp/
 | **Karar Motoru (NLU)** | Kural Tabanlı Uzman Sistem (`decision_engine.py`) | Harici LLM olmadan %100 deterministik, sıfır halüsinasyonlu Türkçe yanıtlar |
 | **Dış Servisler** | Open-Meteo REST API | API anahtarsız, ücretsiz canlı sıcaklık ve hava kodu servisi |
 | **Mobil/Müdür Arayüzü** | Telegram Bot API | Kafe sahibine anlık bildirim, klavye butonları ve serbest soru yanıtlama |
-| **Frontend (Faz 2 Hedefi)** | Next.js 14/15, Tailwind CSS, shadcn/ui | Dokunmatik POS, KDS Mutfak Ekranı ve Garson PWA |
+| **Frontend (Aşama 2–4 Hedefi)** | Next.js 16, Tailwind CSS, shadcn/ui | Dokunmatik POS, KDS Mutfak Ekranı ve Garson PWA |
 
 ### B. Mimari Veri Akış Şeması
 ```
@@ -325,18 +325,15 @@ Bu projede kod yazarken veya değişiklik yaparken aşağıdaki kurallara **mutl
 
 ---
 
-## 10. Geliştirme Yol Haritası ve Sıradaki Görevler (Roadmap & Next Steps)
+## 10. Geliştirme Yol Haritası ve Sıradaki Görevler
 
-- [x] **Faz 1: Çekirdek Veritabanı & Simülatör (TAMAMLANDI)**
-  - SQLite veritabanı, 37.000+ siparişlik örnek veri seti, menü, hammadde ve masa tanımları.
-- [x] **Faz 4: Yapay Zeka & Tahmin Katmanı (TAMAMLANDI)**
-  - LightGBM regresyon modeli, Open-Meteo hava servisi, deterministik NLU motoru, Telegram asistanı, FastAPI `/api/ai/...` endpoint'leri.
-- [ ] **Faz 2: Kullanıcı Arayüzü & Frontend MVP (SIRADAKİ ÖNCELİKLİ GÖREV)**
-  - `frontend/` dizini altında Next.js 14/15 PWA oluşturulması.
-  - Tailwind CSS + shadcn/ui ile dokunmatik tablet POS arayüzü (Kategori listesi, ürün butonları, sepet, ödeme modalı).
-  - Mobil Garson El Terminali (PWA): Garsonun masada telefonundan sipariş girmesi.
-  - Basit KDS Mutfak/Barista Ekranı: Düşen siparişlerin yeşil/sarı/kırmızı zaman sayaçlarıyla listelenmesi.
-- [ ] **Faz 3: Reçete ve Stok Düşüm Olay Motoru**
-  - Sipariş onaylandığında veritabanındaki hammadde stoklarını otomatik eksilten arka plan tetikleyicisi.
-- [ ] **Faz 5: Gerçek Sahada Pilot Deneme**
-  - Butik bir kafede gerçek siparişlerle test ve geri bildirim döngüsü.
+Güncel geliştirme sırası ve çıkış ölçütleri için ana kaynak `docs/ROADMAP.md` dosyasıdır (30 Ekim 2026). Eski faz numaraları yerine şu sıra izlenir:
+
+- [x] **Temel:** Örnek veri, AI/Telegram, Docker/Dev Container, PostgreSQL/Alembic ve menü/masa listeleme servisleri.
+- [x] **Aşama 1 (tamamlandı):** Adisyon ve ödeme backend'i; kalemler, hazırlık durumları, iptal geçmişi, kuruş cinsinden işlem tutarları, tekrar istek ve eşzamanlılık koruması.
+- [x] **Aşama 2 (tamamlandı):** Tek masa için uçtan uca POS ve basit KDS.
+- [ ] **Aşama 3 (sıradaki):** Tek kaynaklı SQL reçeteleri ve izlenebilir gerçek stok hareketleri. Stok etkisinin oluştuğu olay ve iptal/zayiat politikası bu aşamada tanımlanır.
+- [ ] **Aşama 4:** Çok cihazlı erişimden önce kimlik doğrulama/roller; mobil garson, canlı KDS ve gelişmiş ödeme akışları.
+- [ ] **Aşama 5:** Yedekleme/geri yükleme, mutabakat ve gerçek kafede pilot.
+
+Mevcut stok erimesi tahmin simülasyonudur; gerçek stok düşümü henüz uygulanmamıştır. Adisyon ve ödeme API sözleşmesi, migration ve test komutları `docs/ORDERS.md` dosyasındadır. Masa servisi POS ve basit KDS `frontend/` altında eklendi; sıradaki iş gerçek stok hareketleridir.

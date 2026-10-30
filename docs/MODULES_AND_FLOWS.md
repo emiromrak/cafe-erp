@@ -2,6 +2,14 @@
 
 Bu dokümanda CafeERP'nin günlük kafe işleyişindeki temas noktaları ve kullanıcı akışları açıklanmıştır.
 
+> **30 Ekim 2026 kapsam kararı:** Ürün iki işletme modelini de hedefler;
+> ilk frontend masa servisi için geliştirilecektir. Bu belgedeki self-servis,
+> varyasyon, parçalı ödeme, mobil PWA ve WebSocket açıklamaları hedef tasarımdır.
+> Aşama 2; masa listesi, adisyon/menü, basit KDS ve servis sonrası tek seferde
+> tam nakit/kart ödeme kaydı içerir. İşletmeye göre model seçimi ve kasada
+> peşin ödeme akışı Aşama 4'te ele alınır. Güncel sıra `ROADMAP.md`, mevcut
+> backend kuralları `ORDERS.md` dosyasındadır.
+
 ---
 
 ## 1. POS & Hızlı Satış Terminali (Kasa / Garson Arayüzü)

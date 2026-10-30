@@ -6,10 +6,10 @@ Uygulama ve model eğitimi PostgreSQL kullanır. `migrations/` Alembic şemasın
 `scripts/import_sqlite.py` ise eski örnek SQLite verisinin tek seferlik güvenli
 aktarımı için kullanılır. Menü ve masa uçları `/api/categories`, `/api/products`
 ve `/api/tables` adreslerindedir. Masa doluluğu `open_tabs.closed_at` alanı boş
-olan adisyonlardan türetilir; adisyon oluşturma ve ödeme API'leri henüz yoktur.
+olan adisyonlardan türetilir; adisyon oluşturma ve ödeme API'leri `ORDERS.md` dosyasında belgelenmiştir.
 Geçmiş siparişler açık adisyon sayılmaz. Bağlantı ve kurulum için `DOCKER.md`.
 
-## Aşama 1 — Karar destek çekirdeğinin doğruluğu
+## Tamamlanan çalışma — Karar destek çekirdeğinin doğruluğu
 
 29 Ekim 2026 tarihinde uygulanan değişiklikler:
 
@@ -38,9 +38,24 @@ Bu metrikler sentetik veri üzerindedir; gerçek işletmedeki başarıyı göste
 
 ## Sıradaki aşamalar
 
-1. **Sipariş ve stok altyapısı:** sürümlü şema geçişleri, menü/masa/adisyon servisleri, kuruş cinsinden para, ödeme ve iptal kayıtları, tek kaynaklı reçeteler ve stok hareketleri. Tekrarlanan istekler çift ödeme veya çift stok düşümü oluşturmamalı.
-2. **İlk uçtan uca ekran:** tek masa için ürün ekleme → mutfağa gönderme → hazırlama → ödeme kapatma.
-3. **Arayüzlerin genişletilmesi:** mobil garson PWA, canlı KDS, yönetici paneli.
+Ana kapsam ve çıkış ölçütleri `ROADMAP.md` dosyasındadır. Güncel sıra:
+
+Aşama 1 tamamlandı: `002_tabs_payments` migration'ı, adisyon/kalem/hazırlık/iptal/ödeme API'leri ve işlem geçmişi eklendi. Para kuruşla tutulur; fiyat satış anında kopyalanır. Her yazma isteğinde tekrar anahtarı, açılış dışında adisyon sürümü zorunludur. Satır kilitleri ve tek ödeme kısıtı eşzamanlı işlemleri korur. Ödeme, rapor satış kaydı ve adisyon kapanışı tek transaction'dır.
+
+Kullanım, güncelleme komutları ve sınırlar: `ORDERS.md`. PostgreSQL üzerinde yeni adisyon testleri dahil toplam 34 test geçti; geçici şemalar kullanıldı, işletme verisine test satışı eklenmedi.
+
+Yerel Docker API imajı yenilendi ve `002_tabs_payments` geçişi uygulandı.
+Geçiş öncesi/sonrası 37.310 sipariş ve 5.659.215,00 TL geçmiş ciro aynı kaldı.
+Çalışan serviste adisyon, mutfak ve masa okuma uçları HTTP 200 döndü;
+ödeme uçları OpenAPI sözleşmesinde doğrulandı. Eğitim veri okuyucusunun
+kendi oluşturduğu bağlantı havuzu da işlem sonunda kapatılır.
+
+Aşama 2 tamamlandı: `frontend/` altında masa/menü/adisyon, temel KDS, gerekçeli iptal ve tam ödeme ekranları eklendi. Sunucu toplamı, tekrar anahtarı ve sürüm kuralları korunur. Tarayıcıda geçici PostgreSQL şemasıyla 2 çay / 50,70 TL tam nakit ödeme ve gerekçeli adisyon iptali doğrulandı. Üç istek güvenliği testi ve TypeScript kontrolü geçti. Docker kurulum ve test tarifi `../frontend/README.md` dosyasındadır.
+
+Sıradaki aşamalar:
+1. **Sıradaki — Aşama 3:** SQL reçeteleri, stok hareketleri ve açık tüketim/iptal/zayiat politikası.
+2. **Aşama 4:** çok cihazlı erişimden önce kimlik doğrulama/roller; mobil garson, canlı KDS ve gelişmiş ödeme.
+3. **Aşama 5:** yedekten dönüş, kasa/stok mutabakatı, kesinti davranışı ve gerçek veriyle pilot.
 
 ## Mevcut sınırlar
 

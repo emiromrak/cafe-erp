@@ -9,7 +9,7 @@ CafeERP, modern 3. nesil kahve dükkanları ile geleneksel Türk kafe dinamikler
 
 Bu depoda çalışırken ajanın temel görevi:
 1. Mevcut FastAPI backend'i ve yapay zeka karar motorunu korumak ve genişletmek.
-2. Faz 2 (Frontend MVP: Next.js PWA, POS, KDS ve Garson arayüzü) geliştirmesini mimariye uygun şekilde gerçekleştirmek.
+2. `docs/ROADMAP.md` sırasına göre önce adisyon ve ödeme backend'ini, ardından uçtan uca POS, stok motoru ve mobil/KDS arayüzlerini mimariye uygun şekilde geliştirmek.
 3. Deterministik finansal ve stok hesaplama kurallarını (halüsinasyonsuz mimariyi) asla bozmamak.
 
 ---
