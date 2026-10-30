@@ -40,6 +40,7 @@ MODEL_FILE = MODEL_DIR / "demand_forecast.pkl"
 
 def load_and_preprocess_data(engine=None):
     """Kalemleri önce adisyon bazında toplar; her adisyonun cirosunu yalnızca bir kez sayar."""
+    owns_engine = engine is None
     engine = engine if engine is not None else get_engine()
     print("[*] PostgreSQL veritabanı okunuyor...")
 
@@ -71,8 +72,13 @@ def load_and_preprocess_data(engine=None):
     GROUP BY order_date, hour, o.weekday, o.weather, o.temperature
     ORDER BY order_date, hour
     """
-    with engine.connect() as conn:
-        df = pd.read_sql_query(text(query), conn)
+    try:
+        with engine.connect() as conn:
+            df = pd.read_sql_query(text(query), conn)
+    finally:
+        # Dışarıdan verilen ortak havuzu kapatmadan, bu çağrının havuzunu temizle.
+        if owns_engine:
+            engine.dispose()
     if df.empty:
         raise ValueError("Model eğitimi için sipariş verisi bulunamadı.")
 
