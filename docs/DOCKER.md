@@ -19,6 +19,11 @@ tekrar çalıştırılabilir; örnek veri aktarımı hedef doluysa güvenli biç
 
 API: http://localhost:8000 — Swagger: http://localhost:8000/docs
 
+POS ve mutfak ekranı: `docker compose up -d --build --wait frontend`.
+Arayüz http://localhost:3000 adresindedir; API bağlantısı Docker ağı üzerinden
+kurulur. Frontend ve API yalnızca yerel bilgisayara açıktır. Arayüz geliştirme
+ve izole tarayıcı testi için `../frontend/README.md` dosyasına bakın.
+
 `Dockerfile`, Python 3.12 ve LightGBM için OpenMP çalışma zamanını kurar.
 Saat dilimi `Europe/Istanbul` olarak ayarlanır.
 `requirements.lock`, doğrulanan ortamın paket sürümlerini sabitler;
