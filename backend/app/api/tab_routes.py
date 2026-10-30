@@ -11,7 +11,7 @@ from app import tab_service
 router = APIRouter(prefix='/api', tags=['Adisyon ve ödeme'])
 Key = Annotated[str, Header(alias='Idempotency-Key', min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_.:-]+$')]
 Identifier = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
-PositiveId = Annotated[int, Path(gt=0)]
+PositiveId = Annotated[int, Path(gt=0, le=9223372036854775807)]
 Quantity = Annotated[int, Field(strict=True, ge=1, le=10000)]
 
 
@@ -27,7 +27,7 @@ class OpenTab(Request):
 
 class Versioned(Request):
     """Eski ekranın güncel adisyonu ezmesini engelleyen sürüm."""
-    expected_version: Annotated[int, Field(strict=True, ge=0)]
+    expected_version: Annotated[int, Field(strict=True, ge=0, le=9223372036854775806)]
 
 
 class AddItem(Versioned):

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from app.ai.predictor import ForecastUnavailableError
 from app.api.catalog_routes import router as catalog_router
 from app.api.tab_routes import router as tab_router
+from app.api.stock_routes import router as stock_router
 
 try:
     from app.api.ai_routes import router as ai_router
@@ -31,16 +32,17 @@ app = FastAPI(
 # CORS ayarları (Next.js PWA ve tablet arayüzleri için)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "PUT"],
+    allow_headers=["Content-Type", "Idempotency-Key"],
 )
 
 # API Rotaları
 app.include_router(ai_router)
 app.include_router(catalog_router)
 app.include_router(tab_router)
+app.include_router(stock_router)
 
 @app.exception_handler(ForecastUnavailableError)
 async def forecast_unavailable_handler(request, exc):

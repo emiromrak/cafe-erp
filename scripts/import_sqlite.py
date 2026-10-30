@@ -6,7 +6,7 @@ from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'backend'))
@@ -51,6 +51,10 @@ def import_data(source=None, engine=None):
             if source_total.quantize(Decimal('.01')) != target_total:
                 raise RuntimeError('Aktarılan ciro kaynakla eşleşmiyor.')
             new.execute(text("SELECT setval(pg_get_serial_sequence('order_items', 'id'), COALESCE((SELECT MAX(id) FROM order_items), 1), EXISTS(SELECT 1 FROM order_items))"))
+            if inspect(new).has_table('stock_movements'):
+                new.execute(text("""INSERT INTO stock_movements(material_id,kind,quantity,balance_after,unit,reason)
+                    SELECT id,'opening',current_stock,current_stock,unit,'Örnek veri açılış bakiyesi'
+                    FROM raw_materials WHERE current_stock>0"""))
             print('Ciro toplamı doğrulandı; işlem tamamlandı.')
 
 if __name__ == '__main__':

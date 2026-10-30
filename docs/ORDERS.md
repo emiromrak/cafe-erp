@@ -33,7 +33,9 @@ karşı kapalıdır; geçişten önce işletme verisi yedeklenmelidir.
 - Her aktif kalem gerekçeyle iptal edilebilir; kayıt silinmez. İptal edilen kalem toplama ve satış raporuna dahil edilmez. Tüm adisyonun gerekçeli iptali masayı boşaltır ve satış üretmez.
 - Ödeme için en az bir aktif kalem bulunmalı, hepsi `ready` olmalı, toplam pozitif olmalı ve `amount_cents` güncel toplama eşit olmalıdır. İlk sürüm yalnızca tek seferde tam `cash` veya `card` kaydı destekler.
 - Ödeme kaydı harici POS cihazından para çekmez veya mali fiş üretmez. Kapanmış adisyon değiştirilemez. Ödeme sonrası iade/ters kayıt ve parçalı ödeme bu sürümde yoktur.
-- Stok hareketi bu aşamada üretilmez. Hazırlanmış ürünün iptalindeki zayiat/stok etkisi Aşama 3'te tanımlanacaktır.
+- Aşama 3 güncellemesi: stok tüketimi hazırlık başlangıcında bir kez oluşur.
+  Hazırlanmış ürün iptalinde tüketim zayiat sınıfına alınır; stok otomatik
+  iade edilmez ve ikinci kez eksiltilmez. Reçete ve politika için `STOCK.md`.
 
 ## Uçlar
 

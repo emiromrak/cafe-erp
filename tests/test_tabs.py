@@ -24,7 +24,7 @@ from app.database import get_engine
 from app.main import app
 
 
-class TabTests(unittest.TestCase):
+class TabFixture(unittest.TestCase):
     def setUp(self):
         self.admin = get_engine()
         self.schema = 'test_tabs_' + uuid.uuid4().hex
@@ -43,6 +43,14 @@ class TabTests(unittest.TestCase):
             conn.execute(text("INSERT INTO open_tabs(table_id,closed_at) VALUES ('legacy',now())"))
             conn.execute(text("INSERT INTO orders(order_id,timestamp,total_amount,payment_method) VALUES ('old','2020-01-01 08:00:00',12.50,'Nakit')"))
         self.upgrade('head')
+        with self.engine.begin() as conn:
+            conn.execute(text("""INSERT INTO raw_materials
+                (id,name,category,unit,current_stock,min_alert,cost)
+                VALUES ('leaf','Çay yaprağı','Çay','gram',100000,10,1)"""))
+            conn.execute(text("""INSERT INTO stock_movements(material_id,kind,quantity,balance_after,unit,reason)
+                VALUES ('leaf','opening',100000,100000,'gram','Test açılışı')"""))
+            conn.execute(text("INSERT INTO product_recipes(product_id,version) VALUES ('tea',1),('free',1)"))
+            conn.execute(text("INSERT INTO recipe_lines VALUES ('tea','leaf',3),('free','leaf',3)"))
         for module in (decision_engine, catalog_routes):
             patcher = patch.object(module, '_engine', return_value=self.engine)
             patcher.start()
@@ -82,10 +90,11 @@ class TabTests(unittest.TestCase):
                                 {'expected_version': tab['version'], 'status': status}, method='patch')
         return tab
 
+class TabTests(TabFixture):
     def test_migration_preserves_legacy_data_and_is_repeatable(self):
         self.upgrade('head')
         with self.engine.connect() as conn:
-            self.assertEqual(conn.execute(text('SELECT version_num FROM alembic_version')).scalar(), '002_tabs_payments')
+            self.assertEqual(conn.execute(text('SELECT version_num FROM alembic_version')).scalar(), '003_inventory')
             self.assertEqual(conn.execute(text('SELECT status FROM open_tabs')).scalar(), 'closed')
             self.assertEqual(str(conn.execute(text('SELECT total_amount FROM orders')).scalar()), '12.50')
 
@@ -183,6 +192,7 @@ class TabTests(unittest.TestCase):
         self.send(f"{base}/items/{other['items'][0]['id']}/cancel", {'expected_version':0,'reason':'Hata'}, expected=404)
         self.assertEqual(self.client.get('/api/tabs/999999').status_code, 404)
         self.assertEqual(self.client.get('/api/tabs/999999/events').status_code, 404)
+        self.assertEqual(self.client.get('/api/tabs/999999999999999999999999').status_code, 422)
 
     def test_total_limit_rolls_back_item_and_request(self):
         with self.engine.begin() as conn:

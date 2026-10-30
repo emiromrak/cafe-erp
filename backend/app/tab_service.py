@@ -1,27 +1,15 @@
 """Adisyon işlemleri: tam sayı para, satır kilitleri ve atomik tekrar koruması."""
-import hashlib
 import json
 from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
+from app.transactions import fail, row, run_idempotent
+from app import stock_service
 
 MAX_CENTS = 999999999999  # Mevcut NUMERIC(12,2) satış alanıyla uyumlu sınır.
-
-
-def fail(message, status=409):
-    """İş kuralı ihlalini istemcinin düzeltebileceği hataya dönüştürür."""
-    raise HTTPException(status_code=status, detail=message)
-
-
-def row(conn, sql, **params):
-    """Parametreli sorgunun tek kaydını sözlük olarak okur."""
-    result = conn.execute(text(sql), params).mappings().first()
-    return dict(result) if result is not None else None
 
 
 def snapshot(conn, tab_id):
@@ -58,16 +46,8 @@ def execute(engine, key, operation, payload, tab_id=None, item_id=None):
     Yanıt kaydı da aynı transaction içindedir; başarısız istek anahtarı tüketmez.
     """
     request = {'operation': operation, 'tab_id': tab_id, 'item_id': item_id, 'payload': payload}
-    digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
-    lock_id = int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], 'big', signed=True)
-    with engine.begin() as conn:
-        conn.execute(text('SELECT pg_advisory_xact_lock(:id)'), {'id': lock_id})
-        previous = row(conn, 'SELECT * FROM api_requests WHERE key=:key', key=key)
-        if previous:
-            if previous['request_hash'] != digest:
-                fail('Idempotency-Key farklı bir istek için kullanılmış.')
-            return previous['response']
-
+    def action(conn):
+        nonlocal tab_id
         if operation == 'open':
             table = row(conn, 'SELECT * FROM dining_tables WHERE id=:id FOR UPDATE', id=payload['table_id'])
             if table is None:
@@ -89,13 +69,11 @@ def execute(engine, key, operation, payload, tab_id=None, item_id=None):
             record_event(conn, tab_id, operation, {
                 **payload, 'item_id': item_id, 'version': tab['version'] + 1, **changes})
 
-        result = jsonable_encoder(snapshot(conn, tab_id))
+        result = snapshot(conn, tab_id)
         if result['total_cents'] > MAX_CENTS:
             fail('Adisyon tutarı desteklenen sınırı aşıyor.', 422)
-        conn.execute(text('''INSERT INTO api_requests (key,request_hash,response)
-            VALUES (:key,:hash,CAST(:response AS jsonb))'''),
-            {'key': key, 'hash': digest, 'response': json.dumps(result, ensure_ascii=False)})
         return result
+    return run_idempotent(engine, key, request, action)
 
 
 def mutate(conn, operation, payload, tab, item_id):
@@ -130,6 +108,10 @@ def mutate(conn, operation, payload, tab, item_id):
             allowed = {'sent': 'preparing', 'preparing': 'ready'}
             if item['status'] == 'cancelled' or (status != 'cancelled' and allowed.get(item['status']) != status):
                 fail('Kalem için bu durum geçişine izin verilmiyor.')
+            if status == 'preparing':
+                stock_service.consume_item(conn, item)
+            elif status == 'cancelled':
+                stock_service.mark_waste(conn, item_id)
             conn.execute(text('UPDATE tab_items SET status=:status WHERE id=:id'), {'status': status, 'id': item_id})
     elif operation == 'submit':
         changed = conn.execute(text("UPDATE tab_items SET status='sent' WHERE tab_id=:id AND status='draft' RETURNING id"), {'id': tab_id}).all()
@@ -137,6 +119,8 @@ def mutate(conn, operation, payload, tab, item_id):
             fail('Mutfağa gönderilecek yeni kalem yok.')
         return {'item_ids': [r[0] for r in changed]}
     elif operation == 'cancel_tab':
+        conn.execute(text("""UPDATE item_materials SET disposition='waste'
+            WHERE item_id IN (SELECT id FROM tab_items WHERE tab_id=:id AND status<>'cancelled')"""), {'id': tab_id})
         conn.execute(text("UPDATE tab_items SET status='cancelled' WHERE tab_id=:id AND status<>'cancelled'"), {'id': tab_id})
         conn.execute(text("UPDATE open_tabs SET status='cancelled',closed_at=now() WHERE id=:id"), {'id': tab_id})
     elif operation == 'pay':
