@@ -325,6 +325,16 @@ Bu projede kod yazarken veya değişiklik yaparken aşağıdaki kurallara **mutl
 
 ---
 
+### Commit ve push düzeni
+
+Kullanıcı aksini belirtmedikçe commit mesajları `tür(kapsam): Türkçe açıklama`
+biçimindedir. Farklı konular tek committe birleştirilmez; her commit anlamlı,
+tutarlı bir iş parçasını kapsar ve bağımlılık sırasıyla hazırlanır. Dosyalar
+veya değişiklik blokları açıkça stage edilir; `git add .` ve `git add -A`
+kullanılmaz. Gerekli kontrollerden sonra, kullanıcı push istediğinde commitler
+normal push ile gönderilir. İşlem sonunda uzak/yerel dal eşitliği ve çalışma
+ağacı doğrulanır. Ayrıntılı ajan kuralı `AGENTS.md` içindedir.
+
 ## 10. Geliştirme Yol Haritası ve Sıradaki Görevler
 
 Güncel geliştirme sırası ve çıkış ölçütleri için ana kaynak `docs/ROADMAP.md` dosyasıdır (30 Ekim 2026). Eski faz numaraları yerine şu sıra izlenir:
@@ -332,8 +342,8 @@ Güncel geliştirme sırası ve çıkış ölçütleri için ana kaynak `docs/RO
 - [x] **Temel:** Örnek veri, AI/Telegram, Docker/Dev Container, PostgreSQL/Alembic ve menü/masa listeleme servisleri.
 - [x] **Aşama 1 (tamamlandı):** Adisyon ve ödeme backend'i; kalemler, hazırlık durumları, iptal geçmişi, kuruş cinsinden işlem tutarları, tekrar istek ve eşzamanlılık koruması.
 - [x] **Aşama 2 (tamamlandı):** Tek masa için uçtan uca POS ve basit KDS.
-- [ ] **Aşama 3 (sıradaki):** Tek kaynaklı SQL reçeteleri ve izlenebilir gerçek stok hareketleri. Stok etkisinin oluştuğu olay ve iptal/zayiat politikası bu aşamada tanımlanır.
-- [ ] **Aşama 4:** Çok cihazlı erişimden önce kimlik doğrulama/roller; mobil garson, canlı KDS ve gelişmiş ödeme akışları.
+- [x] **Aşama 3 (backend tamamlandı):** SQL reçeteleri, hazırlıkta tüketim ve izlenebilir stok hareketleri. İptal/zayiat politikası `docs/STOCK.md` dosyasındadır.
+- [ ] **Aşama 4 (sıradaki):** Çok cihazlı erişimden önce kimlik doğrulama/roller; stok yönetimi, mobil garson, canlı KDS ve gelişmiş ödeme akışları.
 - [ ] **Aşama 5:** Yedekleme/geri yükleme, mutabakat ve gerçek kafede pilot.
 
-Mevcut stok erimesi tahmin simülasyonudur; gerçek stok düşümü henüz uygulanmamıştır. Adisyon ve ödeme API sözleşmesi, migration ve test komutları `docs/ORDERS.md` dosyasındadır. Masa servisi POS ve basit KDS `frontend/` altında eklendi; sıradaki iş gerçek stok hareketleridir.
+Tahmini stok erimesi ve gerçek stok hareketleri ayrı tutulur. `003_inventory` ile gerçek tüketim hazırlık başladığında kaydedilir; mevcut reçetenin kopyası korunur. Güncel politika ve API `docs/STOCK.md`, inceleme `docs/REVIEW_2026-10-31.md` dosyasındadır. Bu belgenin eski SQLite/ortalama tüketim açıklamaları tarihsel tasarımdır; güncel operasyonel kaynak SQL reçeteleridir.

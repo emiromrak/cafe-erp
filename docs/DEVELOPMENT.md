@@ -53,14 +53,19 @@ kendi oluşturduğu bağlantı havuzu da işlem sonunda kapatılır.
 Aşama 2 tamamlandı: `frontend/` altında masa/menü/adisyon, temel KDS, gerekçeli iptal ve tam ödeme ekranları eklendi. Sunucu toplamı, tekrar anahtarı ve sürüm kuralları korunur. Tarayıcıda geçici PostgreSQL şemasıyla 2 çay / 50,70 TL tam nakit ödeme ve gerekçeli adisyon iptali doğrulandı. Üç istek güvenliği testi ve TypeScript kontrolü geçti. Docker kurulum ve test tarifi `../frontend/README.md` dosyasındadır.
 
 Sıradaki aşamalar:
-1. **Sıradaki — Aşama 3:** SQL reçeteleri, stok hareketleri ve açık tüketim/iptal/zayiat politikası.
-2. **Aşama 4:** çok cihazlı erişimden önce kimlik doğrulama/roller; mobil garson, canlı KDS ve gelişmiş ödeme.
-3. **Aşama 5:** yedekten dönüş, kasa/stok mutabakatı, kesinti davranışı ve gerçek veriyle pilot.
+31 Ekim 2026: Aşama 3 backend'i tamamlandı. `003_inventory`, 15 örnek SQL
+reçetesi, hazırlık başlangıcında atomik tüketim, zayiat/iade hareketleri ve
+reçete sürümleri eklendi. 46 backend ve 4 frontend testi geçti; TypeScript ve
+üretim derlemesi doğrulandı. İnceleme bulguları `REVIEW_2026-10-31.md`, stok
+politikası ve kurulum `STOCK.md` dosyasındadır.
+
+1. **Sıradaki — Aşama 4:** kimlik doğrulama/roller, yetkili stok yönetim ekranları; mobil garson, canlı KDS ve gelişmiş ödeme.
+2. **Aşama 5:** yedekten dönüş, kasa/stok mutabakatı, kesinti davranışı ve gerçek veriyle pilot.
 
 ## Mevcut sınırlar
 
 - Eski SQLite kaynağı altı uygulama tablosu içerir. `CODEX.md` ve eski mimari belgelerindeki bazı alanlar hedef tasarımdır.
-- Reçeteler veri üretecinde ve JSON'da bulunur; SQL reçete tablosu ve gerçek stok hareketi henüz yoktur. Tahmin simülasyonundaki ortalama tüketim katsayıları gerçek ürün reçetelerinin yerine kullanılmamalıdır.
+- SQL reçeteleri operasyonel kaynaktır; JSON yalnızca ilk örnek aktarım kaynağıdır. Ürün bazlı ikram ve ayrı stok/reçete yönetim ekranı henüz yoktur; malzeme hareketleri API'den kaydedilir.
 - Backend için kimlik doğrulama ve rol kontrolü henüz yoktur. Varsayılan sunucu yerel `127.0.0.1` adresinde çalışır; dış erişim öncesinde erişim kontrolü ve CORS yapılandırması tamamlanmalıdır.
 - Telegram zamanlanmış sabah/akşam raporu göndermiyor; gelen mesajlara yanıt veriyor.
 - Uygulama testleri `tests/` altındadır.

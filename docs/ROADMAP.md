@@ -28,7 +28,7 @@ uyarlanması, self-servis geliştirmesinin ayrı kabul ölçütleriyle ele alın
 - [x] PostgreSQL geçişi, ilk Alembic geçişi ve SQLite veri aktarım betiği.
 - [x] Kategori, ürün ve masa listeleme API'leri; açık adisyona göre masa doluluğu.
 
-Adisyon ve ödeme API'leri Aşama 1 kapsamında eklendi. POS ve basit mutfak arayüzü Aşama 2 kapsamında eklendi. Henüz SQL reçeteleri ve gerçek stok hareketleri yoktur. Stok tükenme simülasyonu gerçek stok düşümü yapmaz. Tahmin başarısı sentetik veri üzerinde ölçülmüştür; saha doğrulaması bekler.
+Adisyon ve ödeme API'leri Aşama 1, POS ve basit mutfak arayüzü Aşama 2 kapsamında eklendi. Aşama 3 ile SQL reçeteleri ve gerçek stok hareketleri kuruldu. Stok tükenme simülasyonu hareket oluşturmaz; gerçek tüketim hazırlık başlangıcında kaydedilir. Tahmin başarısı sentetik veri üzerinde ölçülmüştür; saha doğrulaması bekler.
 
 ## Aşama 1 — Adisyon ve ödeme backend'i (tamamlandı)
 
@@ -59,23 +59,29 @@ Aşama 4 kapsamındadır.
 
 **Çıkış ölçütü:** Bir masanın sipariş ve ödeme akışı tarayıcıdan tamamlanır; sayfa yenilenince adisyon durumu kaybolmaz. Bu aşama yerel geliştirme içindir; dış erişim ve gerçek işletme kullanımı Aşama 4 ve 5 koşullarına bağlıdır.
 
-## Aşama 3 — Reçeteler ve gerçek stok hareketleri (sıradaki iş)
+## Aşama 3 — Reçeteler ve gerçek stok hareketleri (backend tamamlandı)
 
-- [ ] Ürün reçetelerini SQL'de tek kaynakta toplamak; birim ve miktarları kesin hassasiyetle tanımlamak.
-- [ ] Üretime gönderme/hazırlama, iptal, ikram ve zayiat için stok etkisinin hangi olayda oluşacağını belirlemek ve belgelemek. Ödeme kapatmayı tüketimle otomatik eşitlememek.
-- [ ] Stok giriş, tüketim, iade ve zayiat hareketlerini izlenebilir kayıtlarla uygulamak; işlem anındaki reçete miktarlarını saklamak.
-- [ ] Tekrar isteklerde çift stok düşümünü önlemek; stok hareketini ilgili iş olayıyla atomik veya güvenilir yeniden işleme mekanizmasıyla bağlamak.
-- [ ] Yetersiz stok davranışını tanımlamak; kritik eşikleri, iptal ve zayiat etkilerini test etmek.
-- [ ] Tahmin simülasyonunu gerçek reçete ve stok kaynağıyla uyumlu hale getirmek; tahmini tüketimi gerçekleşen hareketlerden ayrı tutmak.
+- [x] Ürün reçetelerini SQL'de tek kaynakta toplamak; birim ve miktarları kesin hassasiyetle tanımlamak.
+- [x] Üretime gönderme/hazırlama, iptal, ikram ve zayiat için stok etkisinin hangi olayda oluşacağını belirlemek ve belgelemek. Ödeme kapatmayı tüketimle otomatik eşitlememek.
+- [x] Stok giriş, tüketim, iade ve zayiat hareketlerini izlenebilir kayıtlarla uygulamak; işlem anındaki reçete miktarlarını saklamak.
+- [x] Tekrar isteklerde çift stok düşümünü önlemek; stok hareketini ilgili iş olayıyla atomik veya güvenilir yeniden işleme mekanizmasıyla bağlamak.
+- [x] Yetersiz stok davranışını tanımlamak; kritik eşikleri, iptal ve zayiat etkilerini test etmek.
+- [x] Tahmin simülasyonunu gerçek reçete ve stok kaynağıyla uyumlu hale getirmek; tahmini tüketimi gerçekleşen hareketlerden ayrı tutmak.
+
+31 Ekim 2026: `003_inventory` ve 15 örnek reçete aktarımı eklendi. Tüketim
+hazırlık başladığında oluşur; hazırlıktan sonra iptal zayiat sayılır ve tekrar
+stok eksiltmez. Malzeme bazlı ikram/personel tüketimi API'dedir; ürün bazlı
+ikram/indirim ve stok yönetim ekranı sonraki arayüz işidir. Ayrıntılar `STOCK.md`.
 
 **Çıkış ölçütü:** Örnek ürün satışında beklenen hammadde hareketleri oluşur; tekrar istek ve iptal senaryoları stoğu yanlış değiştirmez.
 
-## Aşama 4 — Erişim kontrolü ve operasyonel arayüzler
+## Aşama 4 — Erişim kontrolü ve operasyonel arayüzler (sıradaki iş)
 
 - [ ] Yerel ağda dahi çok cihazlı kullanıma açmadan önce personel kimlik doğrulaması, kasiyer/garson/mutfak/yönetici yetkileri ve CORS yapılandırması.
 - [ ] Mobil garson PWA; masa başından sipariş alma ve açık hesabı görüntüleme.
 - [ ] Canlı KDS ve masa güncellemeleri; WebSocket yeniden bağlandığında sunucudan durum eşitleme.
 - [ ] Yönetici ekranında gerçekleşen satış, kritik stok ve tahmin kartları; tahmin ve yedek veri durumunun görünür olması.
+- [ ] Yetkili yönetici için stok girişi, hareket defteri ve reçete düzenleme ekranları.
 - [ ] Parçalı ödeme, hesap bölme ve ürün varyasyonları; varyasyon fiyatı ve reçete etkisinin birlikte yönetilmesi.
 - [ ] İşletmeye göre masa servisi / kasada peşin ödeme modelini seçebilme; self-servis için ödeme ve hazırlık yaşam döngülerini ayırma, ödeme sonrası hazırlık ve tekrar istek testleri.
 
@@ -100,4 +106,4 @@ Aşama 4 kapsamındadır.
 
 ## Sıradaki iş paketi
 
-**Aşama 3:** tek kaynaklı reçete modeli → tüketim/iptal/zayiat politikası → izlenebilir stok hareketleri ve tekrar istek testleri. Arayüz kurulumu `../frontend/README.md`, backend sözleşmesi `ORDERS.md` dosyasındadır. Sonraki aşamaya ilgili çıkış ölçütü sağlandığında geçilir.
+**Aşama 4:** personel kimlik doğrulaması ve roller → yetkili yönetim ekranları → mobil garson ve canlı KDS. Stok politikası `STOCK.md`, inceleme sonucu `REVIEW_2026-10-31.md` dosyasındadır. Sonraki aşamaya ilgili çıkış ölçütü sağlandığında geçilir.

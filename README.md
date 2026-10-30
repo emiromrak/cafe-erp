@@ -7,7 +7,7 @@
 ## 🌟 Öne Çıkan Özellikler
 
 - **🧠 Makine Öğrenmesi ile Talep & Ciro Tahmini:** LightGBM regresyon modeli, geçmiş 6 aylık saatlik veriyi ve canlı hava durumu koşullarını harmanlayarak günün pik saatlerini ve beklenen satış hacmini öngörür.
-- **🥛 Stok & Erime Hızı (Burn-Rate) Simülasyonu:** Yoğunluk tahminine göre çay, süt, ekmek ve kaşarın tükenme saatini hesaplar. Gerçek siparişten reçeteye bağlı otomatik stok düşümü Aşama 3 kapsamındadır.
+- **🥛 Stok ve Reçete Motoru:** Hazırlık başladığında SQL reçetesinden gerçek stok tüketir; giriş, iade ve zayiatı hareket defterinde tutar. Ayrı tükenme simülasyonu, günün kalan saatleri ve SQL reçeteleriyle sınırlı kapsamda tahmin üretir.
 - **🌤️ Canlı Hava Durumu Entegrasyonu:** Open-Meteo REST API ile sıfır konfigürasyon ve ücretsiz olarak kafe bölgesinin sıcaklık ve yağış durumunu çeker.
 - **📱 Cepteki Müdür (Telegram Bot Asistanı):** Kafe sahibine sabah brifingi sunar, klavye butonları ve serbest Türkçe NLU motoru ile anlık ciro, yoğunluk ve stok sorgulama imkanı sağlar.
 - **⚡ Halüsinasyonsuz Karar Motoru (LLM-less NLU):** Finansal ciro ve stok hesaplamalarında harici LLM maliyeti ve halüsinasyon riski olmadan %100 matematiksel doğrulukla çalışan Türkçe kural motoru.
@@ -94,6 +94,7 @@ docker compose up -d --wait db
 docker compose build api
 docker compose run --rm api python -m alembic upgrade head
 docker compose run --rm api python scripts/import_sqlite.py
+docker compose run --rm api python scripts/import_recipes.py
 docker compose up -d --wait api
 ```
 
@@ -153,8 +154,8 @@ python backend/app/ai/train_forecast.py
 - [x] **Temel altyapı:** Örnek veri, AI karar destek servisleri, Telegram, Docker/Dev Container, PostgreSQL/Alembic ve menü/masa listeleme API'leri.
 - [x] **Aşama 1 — Tamamlandı:** Adisyon, kalem, hazırlık durumu ve ödeme backend'i; güvenli tekrar istekler ve doğru satış raporlama.
 - [x] **Aşama 2 — Tamamlandı:** Tek masa için uçtan uca POS ve basit mutfak ekranı.
-- [ ] **Aşama 3 (sıradaki):** SQL reçeteleri ve gerçek stok hareketleri.
-- [ ] **Aşama 4:** Erişim kontrolü, mobil garson PWA, canlı KDS ve gelişmiş ödeme akışları.
+- [x] **Aşama 3 — Backend tamamlandı:** SQL reçeteleri, hazırlıkta gerçek stok tüketimi ve hareket defteri.
+- [ ] **Aşama 4 (sıradaki):** Erişim kontrolü, stok yönetim ekranları, mobil garson PWA, canlı KDS ve gelişmiş ödeme akışları.
 - [ ] **Aşama 5:** Yedekleme, mutabakat ve pilot kafe doğrulaması.
 
 Ayrıntılı kapsam ve her aşamanın çıkış ölçütleri: [güncel yol haritası](docs/ROADMAP.md).
@@ -171,3 +172,5 @@ Ayrıntılı kapsam ve her aşamanın çıkış ölçütleri: [güncel yol harit
 - **[docs/FISCAL_AND_MVP_STRATEGY.md](docs/FISCAL_AND_MVP_STRATEGY.md):** Türkiye ÖKC ve mali mevzuat yaklaşımı.
 - **[docs/ROADMAP.md](docs/ROADMAP.md):** Aşama bazlı geliştirme planı.
 - **[docs/ORDERS.md](docs/ORDERS.md):** Adisyon/ödeme API sözleşmesi ve güncelleme komutları.
+- **[docs/STOCK.md](docs/STOCK.md):** Reçete ve stok hareketi politikası, API ve kurulum.
+- **[docs/REVIEW_2026-10-31.md](docs/REVIEW_2026-10-31.md):** Kod incelemesi, düzeltilenler ve kalan işler.

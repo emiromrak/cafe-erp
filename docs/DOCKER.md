@@ -8,6 +8,7 @@ docker compose up -d --wait db
 docker compose build api
 docker compose run --rm api python -m alembic upgrade head
 docker compose run --rm api python scripts/import_sqlite.py
+docker compose run --rm api python scripts/import_recipes.py
 docker compose up -d --wait api
 docker compose ps
 docker compose logs -f api
