@@ -77,4 +77,10 @@ işletme şemasında test kaydı oluşturulmaz.
 
 Tablet için 1024×768, dar ekran için 390×844 yerleşimleri kontrol edilir.
 Bu sürüm mobil garson PWA, offline çalışma, erişim kontrolü, parçalı ödeme,
-ürün varyasyonu, stok düşümü ve banka POS entegrasyonu içermez.
+ürün varyasyonu ve banka POS entegrasyonu içermez. Aşama 3 güncellemesiyle
+hazırlık başlatmak SQL reçetesinden gerçek stok tüketir; stok politikası
+`../docs/STOCK.md` dosyasındadır. Stok/reçete yönetimi şimdilik API'dedir.
+
+Bekleyen yazmalar her istek için ayrı localStorage kaydı kullanır; birden
+fazla sekme birbirinin tekrar anahtarını ezmez. Veri okumaları sıraya alınır.
+İlk açılışta bağlantı uyarısı yerine bağlanma durumu gösterilir.

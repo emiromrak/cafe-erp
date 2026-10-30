@@ -1,15 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Armchair, ArrowLeft, ArrowRight, Banknote, Check, CheckCheck, ChefHat, Coffee, CreditCard, Grid2X2, Leaf, LoaderCircle, Minus, Plus, Search, Send, Soup, Trash2, Wifi, WifiOff, X } from 'lucide-react';
+import { Armchair, ArrowLeft, ArrowRight, Banknote, Check, CheckCheck, ChefHat, Coffee, CreditCard, Grid2X2, LoaderCircle, Minus, Plus, Search, Send, Soup, Trash2, Wifi, WifiOff, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/dialog';
 import { ApiError, createCommand, request, sendCommand } from '@/lib/api.mjs';
+import { readPending, savePending, removePending } from '@/lib/command-store.mjs';
 import type { Category, Item, KitchenItem, OpenTab, Product, Tab, Table } from '@/lib/types';
 
 const money = (cents: number) => new Intl.NumberFormat('tr-TR', {style:'currency',currency:'TRY'}).format(cents / 100);
 const statusNames: Record<Item['status'], string> = {draft:'Gönderilmedi', sent:'Bekliyor', preparing:'Hazırlanıyor', ready:'Hazır', cancelled:'İptal edildi'};
-const STORAGE = 'cafe-erp-pending-v1';
 type Command = ReturnType<typeof createCommand>;
 
 export default function POS() {
@@ -27,7 +27,9 @@ export default function POS() {
   const [connected, setConnected] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [selectionLoading, setSelectionLoading] = useState(false);
   const [pending, setPending] = useState<Command|null>(null);
+  const [storageError, setStorageError] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [payment, setPayment] = useState(false);
@@ -39,9 +41,13 @@ export default function POS() {
   const selection = useRef<string|null>(null);
   const epoch = useRef(0);
   const pendingRef = useRef<Command|null>(null);
+  const refreshing = useRef(false);
+  const refreshAgain = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<void> => {
     if (gate.current) return;
+    if (refreshing.current) { refreshAgain.current = true; return; }
+    refreshing.current = true;
     const generation = epoch.current;
     const tableId = selection.current;
     try {
@@ -52,33 +58,44 @@ export default function POS() {
       const current: Tab|null = open ? await request(`/tabs/${open.id}`) : null;
       if (generation !== epoch.current || gate.current) return;
       setTables(ts); setProducts(ps); setCategories(cs); setOpenTabs(os); setKitchen(ks);
-      if (selection.current === tableId) setTab(current);
+      if (selection.current === tableId) { setTab(current); setSelectionLoading(false); }
       setConnected(true); setLoaded(true);
     } catch {
       if (generation !== epoch.current) return;
       setConnected(false); setLoaded(true);
+      setSelectionLoading(false);
+    } finally {
+      refreshing.current = false;
+      if (refreshAgain.current) { refreshAgain.current = false; void refresh(); }
     }
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE);
-      if (raw) {
-        const command = JSON.parse(raw);
-        if (typeof command.path === 'string' && typeof command.key === 'string' && command.body && ['POST','PATCH'].includes(command.method)) {
-          pendingRef.current = command; setPending(command);
-        } else localStorage.removeItem(STORAGE);
+    function restore() {
+      if (gate.current) return;
+      try {
+        const command = readPending(localStorage);
+        pendingRef.current = command; setPending(command); setStorageError(false);
+      } catch {
+        setStorageError(true);
+        setError('Tarayıcı işlem kaydı okunamadı. Yeni işlemden önce bekleyen kayıt kontrol edilmeli.');
       }
-    } catch { setError('Tarayıcı işlem kaydı okunamadı. Yeni işlemden önce bağlantınızı kontrol edin.'); }
+    }
+    restore();
+    window.addEventListener('storage', restore);
     void refresh();
     const timer = setInterval(() => void refresh(), 5000);
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); window.removeEventListener('storage', restore); };
   }, [refresh]);
 
   useEffect(() => { setConfirmed(false); }, [tab?.version, method, payment]);
+  useEffect(() => {
+    if (loaded && area !== 'all' && !tables.some(t => t.area === area)) setArea('all');
+  }, [tables, area, loaded]);
 
   function selectTable(id: string|null) {
     selection.current = id; epoch.current++; setSelected(id); setTab(null); setError(''); setNotice('');
+    setSelectionLoading(id !== null);
     void refresh();
   }
 
@@ -87,10 +104,11 @@ export default function POS() {
     gate.current = true; epoch.current++; setBusy(true); setError(''); setNotice('');
     try {
       // Sunucuya göndermeden önce anahtarı sakla: yenileme ve ağ kesintisinde korunur.
-      localStorage.setItem(STORAGE, JSON.stringify(command));
+      savePending(localStorage, command);
       pendingRef.current = command; setPending(command);
       const result: Tab = await sendCommand(command);
-      localStorage.removeItem(STORAGE); pendingRef.current = null; setPending(null);
+      removePending(localStorage, command);
+      pendingRef.current = readPending(localStorage); setPending(pendingRef.current);
       if (result.table_id === selection.current) setTab(result.status === 'open' ? result : null);
       if (command.path.endsWith('/payments')) {
         setPayment(false); setNotice(`${money(result.payment!.amount_cents)} ödeme kaydedildi. Masa boşaltıldı.`);
@@ -99,7 +117,8 @@ export default function POS() {
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
       if (status >= 400 && status < 500) {
-        localStorage.removeItem(STORAGE); pendingRef.current = null; setPending(null);
+        removePending(localStorage, command);
+        pendingRef.current = readPending(localStorage); setPending(pendingRef.current);
         setPayment(false); setCancel(null);
       }
       setError(err instanceof Error ? err.message : 'İşlem tamamlanamadı.');
@@ -115,7 +134,7 @@ export default function POS() {
   }
 
   const table = tables.find(t => t.id === selected);
-  const locked = busy || !!pending || !connected;
+  const locked = busy || !!pending || !connected || selectionLoading || storageError;
   const active = tab?.items.filter(i => i.status !== 'cancelled') || [];
   const canPay = !!tab && active.length > 0 && active.every(i => i.status === 'ready') && tab.total_cents > 0;
   const shown = products.filter(p => (category === 'all' || p.category_id === category) && p.name.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr')));
@@ -126,20 +145,19 @@ export default function POS() {
       <div className="brand-mark"><Coffee size={25}/></div>
       <span className="rail-label">CAFE<span>ERP</span></span>
       <nav aria-label="Ana menü">
-        <button className={view==='tables'?'nav-item active':'nav-item'} onClick={() => setView('tables')}><Grid2X2 size={21}/><span>Servis</span></button>
+        <button className={view==='tables'?'nav-item active':'nav-item'} onClick={() => setView('tables')}><Grid2X2 size={21}/><span>Masalar</span></button>
         <button className={view==='kitchen'?'nav-item active':'nav-item'} onClick={() => setView('kitchen')}><ChefHat size={23}/><span>Mutfak</span></button>
       </nav>
-      <div className="rail-bottom"><Leaf size={21}/><span>Masa servisi</span></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><div><span className="eyebrow">İŞLETME ÇALIŞMA ALANI</span><div className="text-sm font-medium mt-1">Servis yönetimi <span className="text-stone-300 mx-2">/</span> {view==='kitchen'?'Mutfak':selected?table?.name || 'Masa':'Masalar'}</div></div><div className={`connection ${connected?'':'offline'}`}>{connected?<Wifi size={15}/>:<WifiOff size={15}/>}<span>{connected?'Bağlı · 5 sn yenileme':'Bağlantı bekleniyor'}</span></div></header>
+      <header className="topbar"><div><span className="eyebrow">İŞLETME ÇALIŞMA ALANI</span><div className="text-sm font-medium mt-1">Servis yönetimi <span className="text-stone-300 mx-2">/</span> {view==='kitchen'?'Mutfak':selected?table?.name || 'Masa':'Masalar'}</div></div><div className={`connection ${connected?'':'offline'}`}>{connected?<Wifi size={15}/>:<WifiOff size={15}/>}<span>{connected?'Bağlı':loaded?'Bağlantı yok':'Bağlanıyor…'}</span></div></header>
       <main>
         {pending && <div className="alert warning" role="alert"><div><strong>Son işlemin sonucu doğrulanmalı.</strong><p>Yeni işlemden önce aynı isteği güvenle tekrar gönderin. Sayfayı yenilemek işlemi iptal etmez.</p></div><Button disabled={busy} onClick={() => void run(pending,true)}>{busy?<LoaderCircle className="animate-spin" size={16}/>:null}Sonucu kontrol et</Button></div>}
         {error && <div className="alert error" role="alert">{error}<button onClick={() => setError('')} aria-label="Uyarıyı kapat"><X size={17}/></button></div>}
         {notice && <div className="alert success" role="status"><Check size={17}/>{notice}</div>}
-        {!connected && <div className="alert warning"><span>Sunucuya ulaşılamıyor. Son görüntülenen bilgiler güncel olmayabilir; yeni işlemler bekletiliyor.</span><Button variant="outline" onClick={() => void refresh()}>Yeniden bağlan</Button></div>}
+        {!connected && loaded && <div className="alert warning"><span>Sunucuya ulaşılamıyor. Son görüntülenen bilgiler güncel olmayabilir; yeni işlemler bekletiliyor.</span><Button variant="outline" onClick={() => void refresh()}>Yeniden bağlan</Button></div>}
         {view==='tables' && !selected && <>
-          <div className="page-heading"><div><span className="eyebrow">HER MASADA İYİ BİR DENEYİM</span><h1>Servise hazır.</h1><p>Sipariş almak veya açık hesabı görmek için bir masa seçin.</p></div><div className="summary"><span className="summary-dot"/><strong>{occupied}</strong> dolu <span className="text-stone-300">/</span><strong>{tables.length-occupied}</strong> boş</div></div>
+          <div className="page-heading"><div><h1>Servise hazır.</h1><p>Sipariş almak veya açık hesabı görmek için bir masa seçin.</p></div><div className="summary"><span className="summary-dot"/><strong>{occupied}</strong> dolu <span className="text-stone-300">/</span><strong>{tables.length-occupied}</strong> boş</div></div>
           <div className="section-toolbar"><div className="tabs"><button className={area==='all'?'selected':''} onClick={() => setArea('all')}>Tüm alanlar</button>{Array.from(new Set(tables.map(t => t.area))).map(a => <button key={a} className={area===a?'selected':''} onClick={() => setArea(a)}>{a}</button>)}</div><span className="text-xs text-stone-400">{tables.length} masa</span></div>
           {!loaded?<div className="empty"><LoaderCircle className="animate-spin"/>Masalar yükleniyor…</div>:tables.length===0?<div className="empty">Gösterilecek masa bulunamadı.</div>:<div className="table-grid">{tables.filter(t => area==='all'||t.area===area).map((t,index) => {
             const open = openTabs.find(o => o.table_id===t.id);
@@ -159,7 +177,6 @@ export default function POS() {
         </>}
         {view==='kitchen' && <><div className="page-heading"><div><span className="eyebrow">BİRLİKTE, TAM ZAMANINDA</span><h1>Mutfak akışı.</h1><p>Gönderilen siparişleri takip edin, hazırlık durumunu güncelleyin.</p></div><div className="summary"><ChefHat size={20}/><strong>{kitchen.filter(i=>i.status!=='ready').length}</strong> bekleyen kalem</div></div><div className="kitchen-grid">{(['sent','preparing','ready'] as const).map(state => <section key={state} className="kitchen-column"><h2><span className={`status status-${state}`}>{statusNames[state]}</span><span>{kitchen.filter(i=>i.status===state).length}</span></h2>{kitchen.filter(i=>i.status===state).map(i => <article className="kitchen-card" key={i.id}><div className="flex justify-between text-xs text-stone-400"><span>{i.table_name}</span><span>{new Date(i.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} · Eklendi</span></div><h3><b>{i.quantity}×</b> {i.product_name}</h3>{state==='ready'?<div className="text-sm text-emerald-700 flex gap-2 items-center"><CheckCheck size={17}/>Servise hazır</div>:<Button className="w-full" variant={state==='sent'?'outline':'default'} disabled={locked} onClick={() => void run(createCommand(`/tabs/${i.tab_id}/items/${i.id}/status`,{expected_version:i.version,status:state==='sent'?'preparing':'ready'},'PATCH'))}>{state==='sent'?<ChefHat size={16}/>:<Check size={16}/>} {state==='sent'?'Hazırlamaya başla':'Hazır işaretle'}</Button>}</article>)}{!kitchen.some(i=>i.status===state) && <div className="column-empty">Bu aşamada sipariş yok.</div>}</section>)}</div></>}
       </main>
-      <footer className="app-footer"><span>CAFEERP <span className="text-stone-300 mx-2">/</span> Masa servisi</span><span>İyi servis, iyi bir gün.</span></footer>
     </div>
     <Modal open={payment} onOpenChange={v=>{if(!busy)setPayment(v);}} title="Hesabı kapat" description={`${table?.name || 'Masa'} · Tek seferde tam ödeme kaydı`}><div className="payment-total">{money(tab?.total_cents || 0)}</div><div className="grid grid-cols-2 gap-3 my-5"><Button variant={method==='cash'?'default':'outline'} onClick={()=>setMethod('cash')} disabled={locked}><Banknote size={20}/>Nakit</Button><Button variant={method==='card'?'default':'outline'} onClick={()=>setMethod('card')} disabled={locked}><CreditCard size={20}/>Kart</Button></div><label className="confirm-label"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} disabled={locked}/><span>{method==='card'?'Harici POS cihazında ödeme başarıyla alındı.':'Nakit tahsilat alındı.'}</span></label><Button className="w-full mt-6" disabled={locked||!confirmed||!canPay} onClick={()=>mutate('/payments',{amount_cents:tab!.total_cents,method})}>{busy?<LoaderCircle className="animate-spin" size={17}/>:<Check size={17}/>}Ödemeyi kaydet ve kapat</Button></Modal>
     <Modal open={!!cancel} onOpenChange={v=>{if(!v&&!busy)setCancel(null);}} title={cancel?.item?'Ürünü iptal et':'Adisyonu iptal et'} description={cancel?.item?`${cancel.item.product_name} kaydı silinmeden iptal edilecek.`:'Tüm aktif kalemler iptal edilir ve masa boşaltılır.'}><label className="block text-sm font-medium mb-2" htmlFor="reason">İptal gerekçesi</label><textarea id="reason" maxLength={500} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Örneğin: Müşteri siparişini değiştirdi" className="reason-input"/><Button variant="destructive" className="w-full mt-4" disabled={locked||!reason.trim()} onClick={()=>mutate(cancel?.item?`/items/${cancel.item.id}/cancel`:'/cancel',{reason:reason.trim()})}>İptali kaydet</Button></Modal>

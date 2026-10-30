@@ -2,7 +2,7 @@
 type Context = {params: Promise<{path:string[]}>};
 async function forward(request: Request, context: Context) {
   const {path} = await context.params;
-  if (!['tabs','tables','products','categories','kitchen'].includes(path[0]) || path.some(p=>p==='.'||p==='..')) {
+  if (!['tabs','tables','products','categories','kitchen','inventory','recipes'].includes(path[0]) || path.some(p=>p==='.'||p==='..')) {
     return Response.json({detail:'Uç bulunamadı.'},{status:404});
   }
   const url = `${process.env.API_BASE_URL || 'http://127.0.0.1:8000'}/api/${path.map(encodeURIComponent).join('/')}${new URL(request.url).search}`;
@@ -20,3 +20,4 @@ async function forward(request: Request, context: Context) {
 export const GET = forward;
 export const POST = forward;
 export const PATCH = forward;
+export const PUT = forward;
