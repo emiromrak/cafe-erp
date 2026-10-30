@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.ai.predictor import ForecastUnavailableError
 from app.api.catalog_routes import router as catalog_router
+from app.api.tab_routes import router as tab_router
 
 try:
     from app.api.ai_routes import router as ai_router
@@ -39,6 +40,7 @@ app.add_middleware(
 # API Rotaları
 app.include_router(ai_router)
 app.include_router(catalog_router)
+app.include_router(tab_router)
 
 @app.exception_handler(ForecastUnavailableError)
 async def forecast_unavailable_handler(request, exc):
