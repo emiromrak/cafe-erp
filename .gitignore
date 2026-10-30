@@ -2,6 +2,7 @@
 docs/templates/*
 !docs/templates/README.md
 docs/output/
+data/backups/
 *.pdf
 
 # Ortam değişkenleri

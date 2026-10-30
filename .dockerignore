@@ -4,6 +4,7 @@ venv
 .vscode
 .env
 .env.*
+data/backups
 **/__pycache__
 **/*.pyc
 *.log
