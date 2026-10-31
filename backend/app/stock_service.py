@@ -144,7 +144,7 @@ def mark_waste(conn, item_id):
     conn.execute(text("UPDATE item_materials SET disposition='waste' WHERE item_id=:id"), {'id':item_id})
 
 
-def execute(engine, key, operation, payload, resource_id):
+def execute(engine, key, operation, payload, resource_id, actor=None):
     """Reçete/manuel stok yazmalarını adisyonlarla ortak tekrar korumasına alır."""
     def action(conn):
         if operation == 'recipe':
@@ -159,4 +159,4 @@ def execute(engine, key, operation, payload, resource_id):
             quantity = -quantity
         change_balance(conn, material, quantity, payload['kind'], payload['reason'])
         return material_snapshot(conn, resource_id)
-    return run_idempotent(engine, key, {'operation':operation,'resource_id':resource_id,'payload':payload}, action)
+    return run_idempotent(engine, key, {'operation':operation,'resource_id':resource_id,'payload':payload}, action, actor)

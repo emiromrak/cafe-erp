@@ -29,12 +29,16 @@ from app.ai.train_forecast import load_and_preprocess_data
 from app.main import app
 from app.database import get_engine
 from app.api import catalog_routes
+from app.auth import current_user
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from import_sqlite import import_data, TABLES
 
 
 class DatabaseTests(unittest.TestCase):
     def setUp(self):
+        # Bu sınıf eski şema üzerindeki rapor kurallarını sınar; gerçek oturumlar test_auth'tadır.
+        app.dependency_overrides[current_user] = lambda: {'id':1, 'role':'admin', 'version':0}
+        self.addCleanup(app.dependency_overrides.clear)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.admin = get_engine()

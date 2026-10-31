@@ -14,9 +14,15 @@ from app.ai import decision_engine as engine_module
 from app.ai.predictor import predictor
 from app.ai.train_forecast import load_and_preprocess_data
 from app.main import app
+from app.auth import current_user
 
 
 class SampleDataIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        # Bu test gerçek satış/model verisini salt okunur inceler; oturum testleri ayrı şemadadır.
+        app.dependency_overrides[current_user] = lambda: {'id':1,'role':'admin','version':0}
+        self.addCleanup(app.dependency_overrides.clear)
+
     def test_all_endpoints_with_real_model_and_reconciled_training_data(self):
         frame = load_and_preprocess_data()
         with engine_module._engine().connect() as conn:

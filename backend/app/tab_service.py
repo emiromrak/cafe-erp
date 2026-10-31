@@ -39,7 +39,7 @@ def record_event(conn, tab_id, event_type, data):
         {'id': tab_id, 'type': event_type, 'data': json.dumps(data, ensure_ascii=False)})
 
 
-def execute(engine, key, operation, payload, tab_id=None, item_id=None):
+def execute(engine, key, operation, payload, tab_id=None, item_id=None, actor=None):
     """Tekrarları aynı yanıtla karşılar; hata halinde bütün yazmaları geri alır.
 
     Kilit sırası: istek anahtarı → masa (açılışta) veya adisyon → kalemler.
@@ -73,7 +73,7 @@ def execute(engine, key, operation, payload, tab_id=None, item_id=None):
         if result['total_cents'] > MAX_CENTS:
             fail('Adisyon tutarı desteklenen sınırı aşıyor.', 422)
         return result
-    return run_idempotent(engine, key, request, action)
+    return run_idempotent(engine, key, request, action, actor)
 
 
 def mutate(conn, operation, payload, tab, item_id):

@@ -22,6 +22,7 @@ from app.ai import decision_engine
 from app.api import catalog_routes
 from app.database import get_engine
 from app.main import app
+from app.auth import token_hash, COOKIE
 
 
 class TabFixture(unittest.TestCase):
@@ -56,6 +57,14 @@ class TabFixture(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.client = TestClient(app)
+        self.client.headers['X-CafeERP-Request'] = '1'
+        token = uuid.uuid4().hex
+        with self.engine.begin() as conn:
+            account_id = conn.execute(text("""INSERT INTO staff_accounts(username,name,role,password_hash)
+                VALUES ('testadmin','Test yöneticisi','admin','unusable') RETURNING id""")).scalar_one()
+            conn.execute(text("""INSERT INTO staff_sessions(token_hash,staff_id,expires_at)
+                VALUES (:token,:id,now()+interval '12 hours')"""), {'token':token_hash(token),'id':account_id})
+        self.client.cookies.set(COOKIE, token)
         self.addCleanup(self.client.close)
 
     def upgrade(self, revision):
@@ -94,7 +103,7 @@ class TabTests(TabFixture):
     def test_migration_preserves_legacy_data_and_is_repeatable(self):
         self.upgrade('head')
         with self.engine.connect() as conn:
-            self.assertEqual(conn.execute(text('SELECT version_num FROM alembic_version')).scalar(), '003_inventory')
+            self.assertEqual(conn.execute(text('SELECT version_num FROM alembic_version')).scalar(), '004_staff_auth')
             self.assertEqual(conn.execute(text('SELECT status FROM open_tabs')).scalar(), 'closed')
             self.assertEqual(str(conn.execute(text('SELECT total_amount FROM orders')).scalar()), '12.50')
 

@@ -10,6 +10,7 @@ from sqlalchemy import text
 from app.ai import decision_engine
 from app.api.tab_routes import Request, Key, Identifier, Versioned
 from app import stock_service
+from app.auth import User
 from app.transactions import fail, row
 
 router = APIRouter(prefix='/api', tags=['Reçete ve stok'])
@@ -57,8 +58,8 @@ def movements(material_id: str | None = None, after_id: Annotated[int, Query(ge=
 
 
 @router.post('/inventory/materials/{material_id}/movements', summary='Giriş, iade veya tüketim kaydet')
-def record_movement(material_id: str, body: Movement, key: Key):
-    return stock_service.execute(decision_engine._engine(), key, 'movement', body.model_dump(mode='json'), material_id)
+def record_movement(material_id: str, body: Movement, key: Key, user: User):
+    return stock_service.execute(decision_engine._engine(), key, 'movement', body.model_dump(mode='json'), material_id, actor=user)
 
 
 @router.get('/recipes/{product_id}', summary='Güncel ürün reçetesi')
@@ -70,5 +71,5 @@ def get_recipe(product_id: str):
 
 
 @router.put('/recipes/{product_id}', summary='Reçeteyi sürümleyerek kaydet')
-def save_recipe(product_id: str, body: Recipe, key: Key):
-    return stock_service.execute(decision_engine._engine(),key,'recipe',body.model_dump(mode='json'),product_id)
+def save_recipe(product_id: str, body: Recipe, key: Key, user: User):
+    return stock_service.execute(decision_engine._engine(),key,'recipe',body.model_dump(mode='json'),product_id,actor=user)

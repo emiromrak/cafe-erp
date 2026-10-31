@@ -29,6 +29,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env dosyasında tanımlanmalı}
       CAFE_LATITUDE: ${CAFE_LATITUDE:-40.99}
       CAFE_LONGITUDE: ${CAFE_LONGITUDE:-29.03}
+      CAFE_ALLOWED_ORIGINS: ${CAFE_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001}
+      CAFE_COOKIE_SECURE: ${CAFE_COOKIE_SECURE:-false}
     volumes:
       - ./data:/app/data
       - ./backend/app/ai/models:/app/backend/app/ai/models
