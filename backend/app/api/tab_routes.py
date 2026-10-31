@@ -38,8 +38,8 @@ class AddItem(Versioned):
 
 
 class ChangeQuantity(Versioned):
-    """Taslak kalemin yeni miktarı."""
-    quantity: Quantity
+    """Taslak kalemin miktarı; sıfır, gönderilmemiş satırı gerekçesiz kaldırır."""
+    quantity: Annotated[int, Field(strict=True, ge=0, le=10000)]
 
 
 class ItemStatus(Versioned):
@@ -58,9 +58,20 @@ class Payment(Versioned):
     method: Literal['cash', 'card']
 
 
+class KitchenCancel(Cancel):
+    """Mutfak kartının ait olduğu adisyon; taslak kalem iptal edilemez."""
+    tab_id: Annotated[int, Field(strict=True, gt=0, le=9223372036854775807)]
+
+
+class ClearReady(Request):
+    """Yalnızca kullanıcının gördüğü hazır kartların kimlikleri."""
+    item_ids: Annotated[list[Annotated[int, Field(strict=True, gt=0, le=9223372036854775807)]], Field(min_length=1, max_length=1000)]
+
+
 ServiceUser = Annotated[dict, Depends(require_roles('admin', 'cashier', 'waiter'))]
 KitchenUser = Annotated[dict, Depends(require_roles('admin', 'kitchen'))]
 CashierUser = Annotated[dict, Depends(require_roles('admin', 'cashier'))]
+CancelUser = Annotated[dict, Depends(require_roles('admin', 'cashier', 'waiter', 'kitchen'))]
 
 
 def command(key, operation, body, user, tab_id=None, item_id=None):
@@ -81,19 +92,34 @@ def list_tabs(user: ServiceUser, table_id: Annotated[str | None, Query(max_lengt
             ORDER BY id'''), {'table': table_id}).mappings()]
 
 
-@router.get('/kitchen/items', summary='Açık adisyonlardaki mutfak kalemleri')
+@router.get('/kitchen/items', summary='Bekleyen, hazırlanan ve temizlenmemiş hazır kalemler')
 def kitchen_items():
     with decision_engine._engine().connect() as conn:
         return [dict(r) for r in conn.execute(text('''SELECT i.*, t.table_id, t.version,
             d.name AS table_name FROM tab_items i JOIN open_tabs t ON t.id=i.tab_id
             JOIN dining_tables d ON d.id=t.table_id
             WHERE t.closed_at IS NULL AND i.status IN ('sent','preparing','ready')
+              AND (i.status<>'ready' OR NOT EXISTS (
+                  SELECT 1 FROM tab_events e WHERE e.tab_id=i.tab_id
+                    AND e.event_type='kitchen_cleared'
+                    AND e.data->>'item_id'=i.id::text
+              ))
             ORDER BY i.id''')).mappings()]
+
+
+@router.post('/kitchen/ready/clear', summary='Seçilen hazır kartları mutfak listesinden temizle')
+def clear_ready(body: ClearReady, key: Key, user: KitchenUser):
+    return tab_service.clear_ready(decision_engine._engine(),key,body.item_ids,actor=user)
 
 
 @router.get('/tabs/{tab_id}', summary='Adisyon, kalemler ve güncel toplam')
 def get_tab(tab_id: PositiveId, user: ServiceUser):
     return tab_service.read_tab(decision_engine._engine(), tab_id)
+
+
+@router.post('/kitchen/items/{item_id}/cancel', summary='Mutfaktaki kalemi gerekçeyle iptal et')
+def cancel_kitchen_item(item_id: PositiveId, body: KitchenCancel, key: Key, user: CancelUser):
+    return command(key, 'kitchen_cancel_item', body, user, body.tab_id, item_id)
 
 
 @router.get('/tabs/{tab_id}/events', summary='Adisyon işlem geçmişi')

@@ -14,6 +14,88 @@ ENCODED = auth.hash_password(PASSWORD)
 
 
 class AuthTests(TabFixture):
+    def test_waiter_and_cashier_cannot_cancel_prepared_item_or_bypass_with_tab_cancel(self):
+        tabs=[]
+        for table,state in [('t1','preparing'),('t2','ready')]:
+            tab=self.add(self.open(table),quantity=1)
+            tab=self.send(f"/api/tabs/{tab['id']}/submit",{'expected_version':tab['version']})
+            for status in (('preparing',) if state=='preparing' else ('preparing','ready')):
+                tab=self.send(f"/api/tabs/{tab['id']}/items/{tab['items'][0]['id']}/status",{'expected_version':tab['version'],'status':status},method='patch')
+            tabs.append(tab)
+        for role in ('waiter','cashier'):
+            client,_,_=self.account(role)
+            for tab in tabs:
+                body={'expected_version':tab['version'],'reason':'Test'}
+                item=tab['items'][0]
+                calls=[(f"/api/tabs/{tab['id']}/items/{item['id']}/cancel",body),
+                       (f"/api/kitchen/items/{item['id']}/cancel",{**body,'tab_id':tab['id']}),
+                       (f"/api/tabs/{tab['id']}/cancel",body)]
+                for index,(path,payload) in enumerate(calls):
+                    response=client.post(path,json=payload,headers={'Idempotency-Key':f'blocked-{role}-{item["id"]}-{index}'})
+                    self.assertEqual(response.status_code,409,response.text)
+                self.assertEqual(self.client.get(f"/api/tabs/{tab['id']}").json(),tab)
+        kitchen,_,_=self.account('kitchen')
+        tab=tabs[0]
+        response=kitchen.post(f"/api/kitchen/items/{tab['items'][0]['id']}/cancel",json={'tab_id':tab['id'],'expected_version':tab['version'],'reason':'Mutfak onayı'},headers={'Idempotency-Key':'kitchen-allowed'})
+        self.assertEqual(response.status_code,200,response.text)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text('SELECT count(*) FROM api_requests WHERE key LIKE :prefix'),{'prefix':'blocked-%'}).scalar_one(),0)
+
+    def test_waiter_can_cancel_sent_items_before_preparation_from_both_views(self):
+        waiter,_,_=self.account('waiter')
+        for table,kitchen_route in [('t1',False),('t2',True)]:
+            tab=self.add(self.open(table),quantity=1)
+            tab=self.send(f"/api/tabs/{tab['id']}/submit",{'expected_version':tab['version']})
+            item=tab['items'][0]
+            body={'expected_version':tab['version'],'reason':'Müşteri vazgeçti'}
+            path=f"/api/tabs/{tab['id']}/items/{item['id']}/cancel"
+            if kitchen_route:
+                path=f"/api/kitchen/items/{item['id']}/cancel"
+                body['tab_id']=tab['id']
+            response=waiter.post(path,json=body,headers={'Idempotency-Key':uuid.uuid4().hex})
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(response.json()['items'][0]['status'],'cancelled')
+
+    def test_kitchen_cancels_sent_item_with_reason_without_draft_or_payment_access(self):
+        kitchen,account,_=self.account('kitchen')
+        draft=self.add(self.open(),quantity=1)
+        item=draft['items'][0]
+        url=f"/api/kitchen/items/{item['id']}/cancel"
+        body={'tab_id':draft['id'],'expected_version':draft['version'],'reason':'Ürün yok'}
+        headers={'Idempotency-Key':'kitchen-cancel'}
+        self.assertEqual(kitchen.post(url,json=body,headers=headers).status_code,409)
+        sent=self.send(f"/api/tabs/{draft['id']}/submit",{'expected_version':draft['version']})
+        body['expected_version']=sent['version']
+        self.assertEqual(kitchen.post(url,json={**body,'reason':' '},headers=headers).status_code,422)
+        response=kitchen.post(url,json=body,headers=headers)
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['total_cents'],0)
+        self.assertEqual(response.json()['items'][0]['status'],'cancelled')
+        self.assertEqual(kitchen.post(url,json=body,headers=headers).json(),response.json())
+        self.assertEqual(kitchen.get('/api/kitchen/items').json(),[])
+        self.assertEqual(kitchen.post(f"/api/tabs/{draft['id']}/cancel",json={'expected_version':3,'reason':'Test'},headers={'Idempotency-Key':'no-full-cancel'}).status_code,403)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text('SELECT current_stock FROM raw_materials WHERE id=:id'),{'id':'leaf'}).scalar_one(),100000)
+            self.assertEqual(conn.execute(text('SELECT count(*) FROM staff_audit WHERE request_key=:key'),{'key':'kitchen-cancel'}).scalar_one(),1)
+            event=conn.execute(text('SELECT data FROM tab_events WHERE event_type=:kind'),{'kind':'kitchen_cancel_item'}).scalar_one()
+            self.assertEqual(event['reason'],'Ürün yok')
+
+    def test_kitchen_prepared_cancel_marks_waste_without_stock_return(self):
+        kitchen,_,_=self.account('kitchen')
+        for table,state in [('t1','preparing'),('t2','ready')]:
+            tab=self.add(self.open(table),quantity=1)
+            tab=self.send(f"/api/tabs/{tab['id']}/submit",{'expected_version':tab['version']})
+            for status in (('preparing',) if state=='preparing' else ('preparing','ready')):
+                tab=self.send(f"/api/tabs/{tab['id']}/items/{tab['items'][0]['id']}/status",{'expected_version':tab['version'],'status':status},method='patch')
+            item=tab['items'][0]
+            with self.engine.connect() as conn:
+                before=conn.execute(text('SELECT current_stock FROM raw_materials WHERE id=:id'),{'id':'leaf'}).scalar_one()
+            response=kitchen.post(f"/api/kitchen/items/{item['id']}/cancel",json={'tab_id':tab['id'],'expected_version':tab['version'],'reason':'Mutfak iptali'},headers={'Idempotency-Key':f'cancel-{state}'})
+            self.assertEqual(response.status_code,200,response.text)
+            with self.engine.connect() as conn:
+                self.assertEqual(conn.execute(text('SELECT current_stock FROM raw_materials WHERE id=:id'),{'id':'leaf'}).scalar_one(),before)
+                self.assertEqual(conn.execute(text('SELECT disposition FROM item_materials WHERE item_id=:id'),{'id':item['id']}).scalar_one(),'waste')
+
     def account(self, role, username=None):
         username = username or role
         token = uuid.uuid4().hex
@@ -124,6 +206,8 @@ class AuthTests(TabFixture):
     def test_role_matrix_protects_api_even_without_ui(self):
         for role in ('waiter','cashier','kitchen'):
             client, _, _ = self.account(role)
+            cleared=client.post('/api/kitchen/ready/clear',json={'item_ids':[999999]},headers={'Idempotency-Key':uuid.uuid4().hex})
+            self.assertEqual(cleared.status_code,200 if role=='kitchen' else 403)
             for path in ('/api/categories','/api/products','/api/tables','/api/kitchen/items'):
                 self.assertEqual(client.get(path).status_code,200,(role,path))
             for path in ('/api/inventory/materials','/api/inventory/movements','/api/recipes/tea','/api/ai/sales-summary','/api/auth/staff'):

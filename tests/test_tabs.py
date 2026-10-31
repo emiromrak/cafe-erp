@@ -100,6 +100,105 @@ class TabFixture(unittest.TestCase):
         return tab
 
 class TabTests(TabFixture):
+    def test_draft_quantity_zero_removes_without_reason_and_replays_safely(self):
+        tab=self.add(self.open(),quantity=2)
+        item=tab['items'][0]
+        path=f"/api/tabs/{tab['id']}/items/{item['id']}"
+        tab=self.send(path,{'expected_version':tab['version'],'quantity':1},method='patch')
+        self.assertEqual(tab['items'][0]['quantity'],1)
+        body={'expected_version':tab['version'],'quantity':0}
+        removed=self.send(path,body,'draft-zero',method='patch')
+        self.assertEqual(removed['items'],[])
+        self.assertEqual(removed['total_cents'],0)
+        self.assertEqual(self.send(path,body,'draft-zero',method='patch'),removed)
+        self.assertEqual(self.client.get('/api/kitchen/items').json(),[])
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text('SELECT count(*) FROM stock_movements')).scalar_one(),1)
+            self.assertEqual(conn.execute(text('SELECT current_stock FROM raw_materials WHERE id=:id'),{'id':'leaf'}).scalar_one(),100000)
+            event=conn.execute(text('SELECT data FROM tab_events WHERE event_type=:kind ORDER BY id DESC LIMIT 1'),{'kind':'quantity'}).scalar_one()
+            self.assertTrue(event['removed'])
+            self.assertEqual(event['quantity_before'],1)
+        # Tekrar eklemek yeni bir taslak oluşturur, silinmiş kimliği canlandırmaz.
+        added=self.add(removed,quantity=1)
+        self.assertNotEqual(added['items'][0]['id'],item['id'])
+
+    def test_sent_item_cannot_be_removed_by_setting_quantity_to_zero(self):
+        tab=self.add(self.open(),quantity=1)
+        tab=self.send(f"/api/tabs/{tab['id']}/submit",{'expected_version':tab['version']})
+        for status in ('sent','preparing','ready'):
+            if status!='sent':
+                tab=self.send(f"/api/tabs/{tab['id']}/items/{tab['items'][0]['id']}/status",{'expected_version':tab['version'],'status':status},method='patch')
+            path=f"/api/tabs/{tab['id']}/items/{tab['items'][0]['id']}"
+            self.send(path,{'expected_version':tab['version'],'quantity':0},method='patch',expected=409)
+            self.assertEqual(self.client.get(f"/api/tabs/{tab['id']}").json(),tab)
+
+    def test_ready_cards_wait_for_manual_clear_and_bill_is_preserved(self):
+        tab=self.ready(self.add(self.open()))
+        item=tab['items'][0]
+        with self.engine.begin() as conn:
+            conn.execute(text("UPDATE tab_events SET created_at=now()-interval '2 hours'"))
+            movements_before=conn.execute(text('SELECT count(*) FROM stock_movements')).scalar_one()
+        self.assertEqual([entry['id'] for entry in self.client.get('/api/kitchen/items').json()],[item['id']])
+        before=self.client.get(f"/api/tabs/{tab['id']}").json()
+        body={'item_ids':[item['id']]}
+        cleared=self.send('/api/kitchen/ready/clear',body,'clear-once')
+        self.assertEqual(cleared['cleared_count'],1)
+        self.assertEqual(self.client.get('/api/kitchen/items').json(),[])
+        self.assertEqual(self.client.get(f"/api/tabs/{tab['id']}").json(),before)
+        self.assertEqual(self.send('/api/kitchen/ready/clear',body,'clear-once'),cleared)
+        self.assertEqual(self.send('/api/kitchen/ready/clear',body)['cleared_count'],0)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text('SELECT count(*) FROM stock_movements')).scalar_one(),movements_before)
+            self.assertEqual(conn.execute(text("SELECT count(*) FROM tab_events WHERE event_type='kitchen_cleared'")).scalar_one(),1)
+        self.assertEqual(self.send(f"/api/tabs/{tab['id']}/payments",{'expected_version':tab['version'],'method':'cash','amount_cents':5070})['status'],'paid')
+
+    def test_clear_ignores_waiting_and_replay_does_not_hide_later_ready_items(self):
+        first=self.ready(self.add(self.open(),quantity=1))
+        second=self.add(self.open('t2'),quantity=1)
+        second=self.send(f"/api/tabs/{second['id']}/submit",{'expected_version':second['version']})
+        ids=[first['items'][0]['id'],second['items'][0]['id']]
+        cleared=self.send('/api/kitchen/ready/clear',{'item_ids':ids},'clear-snapshot')
+        self.assertEqual(cleared['cleared_item_ids'],[ids[0]])
+        self.assertEqual([entry['status'] for entry in self.client.get('/api/kitchen/items').json()],['sent'])
+        for status in ('preparing','ready'):
+            second=self.send(f"/api/tabs/{second['id']}/items/{ids[1]}/status",{'expected_version':second['version'],'status':status},method='patch')
+        self.assertEqual(self.send('/api/kitchen/ready/clear',{'item_ids':ids},'clear-snapshot'),cleared)
+        self.assertEqual([entry['id'] for entry in self.client.get('/api/kitchen/items').json()],[ids[1]])
+        self.send('/api/kitchen/ready/clear',{'item_ids':[ids[0]]})
+        self.assertEqual([entry['id'] for entry in self.client.get('/api/kitchen/items').json()],[ids[1]])
+
+    def test_clear_ready_rejects_invalid_ids_and_leaves_preparing_visible(self):
+        tab=self.add(self.open(),quantity=1)
+        tab=self.send(f"/api/tabs/{tab['id']}/submit",{'expected_version':tab['version']})
+        item=tab['items'][0]
+        tab=self.send(f"/api/tabs/{tab['id']}/items/{item['id']}/status",{'expected_version':tab['version'],'status':'preparing'},method='patch')
+        self.assertEqual(self.send('/api/kitchen/ready/clear',{'item_ids':[item['id']]})['cleared_count'],0)
+        self.assertEqual([entry['status'] for entry in self.client.get('/api/kitchen/items').json()],['preparing'])
+        for ids in ([],[0],[-1],[True],['1']):
+            self.send('/api/kitchen/ready/clear',{'item_ids':ids},expected=422)
+
+    def test_repeated_product_merges_draft_once_and_keeps_sent_items_separate(self):
+        first=self.add(self.open(),quantity=1)
+        second=self.add(first,quantity=1,key='second-tea')
+        self.assertEqual(len(second['items']),1)
+        self.assertEqual(second['items'][0]['id'],first['items'][0]['id'])
+        self.assertEqual(second['items'][0]['quantity'],2)
+        self.assertEqual(second['total_cents'],5070)
+        self.assertEqual(self.add(first,quantity=1,key='second-tea'),second)
+        sent=self.send(f"/api/tabs/{second['id']}/submit",{'expected_version':second['version']})
+        later=self.add(sent,quantity=1)
+        self.assertEqual([(item['status'],item['quantity']) for item in later['items']],[('sent',2),('draft',1)])
+
+    def test_draft_merge_preserves_price_snapshot_and_quantity_limit(self):
+        first=self.add(self.open(),quantity=1)
+        with self.engine.begin() as conn:
+            conn.execute(text("UPDATE products SET price=30 WHERE id='tea'"))
+        changed=self.add(first,quantity=1)
+        self.assertEqual([item['unit_price_cents'] for item in changed['items']],[2535,3000])
+        limited=self.add(self.open('t2'),quantity=10000)
+        self.send(f"/api/tabs/{limited['id']}/items",{'expected_version':limited['version'],'product_id':'tea','quantity':1},'limit-merge',expected=422)
+        self.assertEqual(self.client.get(f"/api/tabs/{limited['id']}").json(),limited)
+
     def test_migration_preserves_legacy_data_and_is_repeatable(self):
         self.upgrade('head')
         with self.engine.connect() as conn:
