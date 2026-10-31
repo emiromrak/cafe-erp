@@ -82,7 +82,7 @@ ikram/indirim ve stok yönetim ekranı sonraki arayüz işidir. Ayrıntılar `ST
 - [x] Personel kullanıcı adı/parolası, scrypt parola özeti, veritabanında iptal edilebilir 12 saatlik oturum ve güvenli çerez seçenekleri.
 - [x] Yönetici/kasiyer/garson/mutfak rollerini API'de uygulamak; yetkisiz okumayı ve yazmayı reddetmek.
 - [x] Giriş/çıkış ekranı; rolüne uygun POS/KDS işlemleri ve yöneticiye özel personel oluşturma/düzenleme ekranı.
-- [x] Ortak POS'ta hesap seçimi ve en az 4 karakterli parolayla hızlı personel geçişi; dokunmatik sayısal tuş takımı, eski oturum iptali ve işlem sorumluluğunun korunması.
+- [x] Ortak POS'ta hesap seçimi ve en az 4 haneli sayısal parolayla hızlı personel geçişi; dokunmatik sayısal tuş takımı, eski oturum iptali ve işlem sorumluluğunun korunması.
 - [x] Parola/rol/aktiflik değişince tüm oturumları kapatmak; son aktif yöneticiyi ve eşzamanlı düzenlemeleri korumak.
 - [x] Hatalı giriş sınırı, izinli Origin/CORS ve yazmalarda güvenlik başlığı denetimi.
 - [x] Sipariş/stok yazmalarında personel kaydını iş işlemiyle atomik saklamak; tekrar anahtarını personele bağlamak.
@@ -94,11 +94,17 @@ PIN'ler giriş hesabına dönüştürülmez. Kurulum, roller ve sınırlar: `AUT
 Tarayıcıyla görsel doğrulama araç erişimi nedeniyle bekler; üretim derlemesi
 ve API/oturum testleri uygulanmıştır. Bu paket Aşama 4'ün tamamı değildir.
 
-### 4.2 — Yetkili stok ve reçete yönetimi (sıradaki iş paketi)
+### 4.2 — Yetkili stok ve reçete yönetimi (uygulandı; görsel kabul bekliyor)
 
-- [ ] Yönetici için kritik stok listesi, stok girişi/iade/zayiat formu ve hareket defteri.
-- [ ] Reçete görüntüleme ve sürüm denetimli düzenleme; birim, hassas miktar ve gerekçe doğrulaması.
-- [ ] Tekrar anahtarı, ağ kesintisi ve yetki değişikliği davranışlarını bu ekranlarda doğrulamak.
+- [x] Yönetici için kritik stok listesi, stok girişi/iade/zayiat formu ve hareket defteri.
+- [x] Reçete görüntüleme ve sürüm denetimli düzenleme; birim, hassas miktar ve gerekçe doğrulaması.
+- [x] Ortak işlem kaydını stok POST ve reçete PUT yazmalarına bağlamak; kayıp yanıtın aynı anahtarla tekrarı, hassas miktarlar ve rol dışı API yazmalarını otomatik testlerle doğrulamak.
+
+64 backend ve 11 frontend testi; TypeScript ve üretim derlemesi doğrulandı.
+Stok/reçete yazmaları POS ile aynı bekleyen işlem kontrolünü kullanır. Hareket
+defteri en yeni kayıtları önce gösterir ve imleçle eski kayıtları yükler.
+Tarayıcı erişim aracı kullanılamadığı için görsel ve dokunmatik kabul bekler;
+kullanım ve sınırlar `STOCK.md` dosyasındadır.
 
 ### 4.3 — Yönetici özeti
 
@@ -135,7 +141,7 @@ ve API/oturum testleri uygulanmıştır. Bu paket Aşama 4'ün tamamı değildir
 
 ## Sıradaki iş paketi
 
-**Aşama 4.2:** yetkili stok ve reçete yönetim ekranları. 4.1 personel girişi/rolleri
-uygulandı; ilk yönetici kurulumu kullanıcı parolasıyla tamamlanır. Sonrasında
-4.3 yönetici özeti → 4.4 mobil garson/canlı KDS → 4.5 gelişmiş ödeme ve
-self-servis sırası izlenir. Aşama 5'e geçmeden Aşama 4 çıkış ölçütleri sağlanır.
+4.2 ekranları uygulandı; görsel kabul bekliyor. **Sıradaki geliştirme paketi
+Aşama 4.3:** gerçekleşen satış, kritik stok ve tahminleri birleştiren yönetici
+özeti. Ardından 4.4 mobil garson/canlı KDS → 4.5 gelişmiş ödeme ve self-servis
+sırası izlenir. Aşama 5'e geçmeden Aşama 4 çıkış ölçütleri sağlanır.

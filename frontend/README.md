@@ -47,9 +47,21 @@ npm start
 - Alan filtresinden masa seçin; mevcut adisyon açılır. Boş masada `Adisyon aç`
   düğmesiyle başlayın. Yalnızca masayı görüntülemek kayıt oluşturmaz.
 - Kategori veya aramayla ürünü bulun. Gönderilmemiş kalemin miktarını değiştirin;
-  iptal için gerekçe girin. Yeni ürünler ayrı kalem olarak eklenir.
+  **−** ile adedi 0'a indirince satır gerekçesiz kaldırılır. Gönderilmiş kalemde
+  çöp kutusu gerekçeli/onaylı iptal açar. Aynı ürünün aynı ad/fiyattaki taslak satırı artırılır;
+  iki çay tek satırda ×2 görünür. Gönderilmiş satıra yeni adet eklenmez.
 - `Mutfağa gönder`, yalnızca gönderilmemiş kalemleri yollar. Mutfak sekmesinden
   sırayla `Hazırlamaya başla` ve `Hazır işaretle` işlemlerini yapın.
+- Hazır kalemler otomatik kaybolmaz. Mutfak/yönetici Hazır sütunundaki
+  **Temizle** ile görünen hazır kartları kaldırır. Adisyon, ödeme ve stok
+  etkilenmez; temizlenen kartlar sayfa yenilemede geri gelmez.
+- Mutfak kartındaki **Ürünü iptal et**, gerekçe ve sonuç uyarısı açar.
+  **Evet, iptal et** ile onaylanır; **Vazgeç** işlem yapmaz. Hazırlanan ürünün
+  tüketimi zayiat sayılır; stok otomatik geri eklenmez. Mutfak personeli de
+  gönderilmiş kalemi iptal edebilir; taslak/tüm adisyon/ödeme yetkisi yoktur.
+- Hazırlanmaya başlanmış veya hazır üründe garson/kasiyere iptal düğmesi
+  gösterilmez; iptal mutfak/yöneticiye aittir. Adisyonda bu durumda ürün varsa
+  garson/kasiyer tüm adisyonu da iptal edemez; aynı kural API'de uygulanır.
 - Tüm aktif kalemler hazır olduğunda nakit/kart tahsilatını onaylayıp kaydedin.
   Kesin toplam ve ödeme doğrulaması backend'den gelir. UI yalnızca para gösterimini yapar.
 - Sunucu verileri 5 saniyede yenilenir. Kaydedilmiş adisyon sayfa yenilemesinden
@@ -64,8 +76,13 @@ npm start
 - Oturum bitince giriş ekranı açılır; belirsiz yazma silinmez. Aynı personel
   tekrar giriş yaparak sonucu kontrol eder. Başka personele ait kayıt ekranda belirtilir.
 - Ortak kasada **Personel değiştir** ile hesap seçip parolayla devam edin.
-  Sayısal tuş takımı dokunmatik giriş içindir; harfli parolalar da desteklenir.
-  Parola alt sınırı 4 karakterdir. Geçişte önceki tarayıcı oturumu iptal edilir.
+  Parolalar yalnızca `0–9` rakamlarından, en az 4 haneden oluşur; baştaki sıfırlar korunur.
+  Eski harfli parolalar yönetici sayısal parola belirleyene kadar girişte çalışır.
+  Geçişte önceki tarayıcı oturumu iptal edilir.
+- Yönetici **Stok** menüsünde hammadde/kritik stokları, gerekçeli malzeme
+  hareketlerini ve ürün reçetelerini yönetir. Hareket defteri en yeni kayıtları
+  önce gösterir. Reçete kaydında sürüm kontrol edilir; kayıp yanıtta PUT isteği
+  aynı tekrar anahtarıyla sürdürülebilir. Ayrıntılar: `../docs/STOCK.md`.
 
 ## İzole tarayıcı testi
 
@@ -87,14 +104,14 @@ Geçici şemadaki Masa 1 ve Çay ürünüyle açılış → ekleme → miktar 2 
 Gerekçeli iptal de ayrı adisyonla doğrulanır. Normal Ctrl+C kapanışında test
 şeması temizlenir. Zorla öldürme halinde `test_tabs_...` şeması kalabilir;
 işletme şemasında test kaydı oluşturulmaz.
-Bu geçici şemaya özel giriş: `testadmin` / `Test-parolasi-2026!`.
+Bu geçici şemaya özel giriş: `testadmin` / `583027461902`.
 Bu hesap işletme veritabanında bulunmaz; gerçek kurulumda kullanılmaz.
 
 Tablet için 1024×768, dar ekran için 390×844 yerleşimleri kontrol edilir.
 Bu sürüm mobil garson PWA, offline çalışma, parçalı ödeme,
 ürün varyasyonu ve banka POS entegrasyonu içermez. Aşama 3 güncellemesiyle
 hazırlık başlatmak SQL reçetesinden gerçek stok tüketir; stok politikası
-`../docs/STOCK.md` dosyasındadır. Stok/reçete yönetimi şimdilik API'dedir.
+`../docs/STOCK.md` dosyasındadır. Stok/reçete yönetimi yöneticinin Stok ekranındadır.
 
 Bekleyen yazmalar her istek için ayrı localStorage kaydı kullanır; birden
 fazla sekme birbirinin tekrar anahtarını ezmez. Veri okumaları sıraya alınır.

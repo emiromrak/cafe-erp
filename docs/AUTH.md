@@ -16,8 +16,9 @@ docker compose up -d --wait frontend
 
 `004_staff_auth` yeni hesap, oturum, giriş denemesi ve denetim tablolarını ekler.
 Geçmiş satış/stok kayıtlarını değiştirmez. `create_admin.py` kullanıcı adı,
-ad soyad ve iki kez parola sorar. Parola terminalde görünmez; 4–128 karakter
-olmalıdır. Kullanıcı adı 3–50 karakter, küçük Latin harf/rakam/`_.-` içerir.
+ad soyad ve iki kez parola sorar. Parola terminalde görünmez; yalnızca `0–9`
+rakamlarından oluşan 4–128 hane olmalıdır. Baştaki sıfırlar korunur.
+Kullanıcı adı 3–50 karakter, küçük Latin harf/rakam/`_.-` içerir.
 Parolayı komuta, `.env` dosyasına veya sohbet mesajına yazmanız gerekmez.
 
 İlk hesap yalnızca hesap tablosu boşken açılır. Örnek `staff` tablosundaki
@@ -34,8 +35,8 @@ alınamaz veya başka role geçirilemez; sürümü eskimiş düzenleme 409 döne
 
 Üst çubuktaki **Personel değiştir** → aktif hesabı seç → en az 4 karakterli
 parolayı gir → **Geçiş yap** akışı kullanılır. Kullanıcı adı tekrar yazılmaz,
-çıkış yapıp sayfa yüklenmesi beklenmez. Sayısal parolalar için dokunmatik tuş
-takımı, harfli parolalar için klavye girişi bulunur; Enter ile onaylanabilir.
+çıkış yapıp sayfa yüklenmesi beklenmez. Dokunmatik sayısal tuş takımı ve
+sayısal klavye girişi bulunur; Enter ile onaylanabilir.
 
 Yanlış parolada mevcut oturum korunur. Başarılı geçişte bu tarayıcının önceki
 oturumu iptal edilir ve yeni personele ait oturum açılır. Yeni rol API'de
@@ -47,23 +48,40 @@ bağlı kalır; yeni hesapla tekrar gönderilemez ve silinmez.
 hesapların `id,username,name,role` bilgilerini verir. Parola doğrulaması normal
 giriş endpoint'inde yapılır; parola saklama ve hatalı deneme sınırları aynıdır.
 Mevcut parolalar otomatik değiştirilmez. Yönetici **Personel** ekranından yeni
-4 karakterli parola belirleyebilir; ilk yönetici kurulumu da aynı sınırı kullanır.
+en az 4 haneli sayısal parola belirleyebilir; ilk yönetici kurulumu da aynı
+kuralı kullanır. Harf, boşluk, sembol ve `0–9` dışındaki rakam karakterleri
+yeni parola kaydında API tarafından reddedilir. Önceden kaydedilmiş harfli
+parolalar erişimi kaybetmemek için girişte kabul edilir; yönetici sayısal parola
+belirlediğinde eski parola geçersiz olur ve açık oturumlar kapatılır.
 
 ## Rol matrisi
 
 | İşlem | Yönetici | Kasiyer | Garson | Mutfak |
 |---|---|---|---|---|
 | Menü, masa, mutfak listesi | Evet | Evet | Evet | Evet |
-| Adisyon okuma, açma, ürün/miktar, gönderme, gerekçeli iptal | Evet | Evet | Evet | Hayır |
+| Adisyon okuma/açma, ürün/miktar, gönderme, taslak veya tüm adisyon iptali | Evet | Evet | Evet | Hayır |
+| Gönderilmiş, hazırlığı başlamamış kalemi gerekçeyle iptal | Evet | Evet | Evet | Evet |
+| Hazırlanıyor / hazır kalemi gerekçeyle iptal | Evet | Hayır | Hayır | Evet |
 | Hazırlamaya başlama / hazır işaretleme | Evet | Hayır | Hayır | Evet |
+| Hazır mutfak kartlarını temizleme | Evet | Hayır | Hayır | Evet |
 | Tam ödeme kaydı | Evet | Evet | Hayır | Hayır |
 | Stok/reçete ve finans/tahmin API'leri | Evet | Hayır | Hayır | Hayır |
 | Personel listesi ve hesap yönetimi | Evet | Hayır | Hayır | Hayır |
 
 Mutfak hesabı KDS ile açılır. Diğer personel mutfak akışını okuyabilir, hazırlık
 butonlarını kullanamaz. Mutfaktaki durum yazma yanıtı mevcut adisyon anlık
-görüntüsünü içerir; bu paket alan bazında fiyat gizleme uygulamaz. Garson
-hazırlanmış ürünü de gerekçeyle iptal edebilir; stok politikası `STOCK.md`'dedir.
+görüntüsünü içerir; bu paket alan bazında fiyat gizleme uygulamaz. Garson ve
+kasiyer hazırlığı başlayan ürünü iptal edemez; bu yetki mutfak/yöneticidedir.
+Adisyonda aktif hazırlanıyor/hazır kalem varsa garson/kasiyer tüm adisyonu da
+iptal edemez. Bu denetim adisyon kilidi altında yapılır; duruma bağlı ret 409
+döner. Stok politikası `STOCK.md`'dedir.
+
+KDS iptali `POST /api/kitchen/items/{item_id}/cancel` ile
+`{tab_id,expected_version,reason}` alır. Mutfak rolü bu uçtan taslak kalemi
+iptal edemez; tüm adisyon iptali veya ödeme yetkisi kazanmaz. İşlem geçmişi
+`kitchen_cancel_item` olayı ve personel denetim kaydıyla saklanır.
+`POST /api/kitchen/ready/clear` yalnızca mutfak/yöneticiye açıktır; hazır kartları
+gizler, adisyonu veya stoğu değiştirmez. Kasiyer/garson bu işlemi yapamaz.
 
 ## Oturum ve istek sözleşmesi
 
@@ -140,7 +158,7 @@ Bu adım Aşama 4'ün operasyonel ekranlarını veya pilot hazırlığını tama
 
 ## Doğrulama
 
-62 backend testi, 7 frontend testi, TypeScript kontrolü ve Next.js üretim
+63 backend testi, 7 frontend testi, TypeScript kontrolü ve Next.js üretim
 derlemesi geçti. Rol testleri gerçek PostgreSQL üzerinde geçici şemalarla
 çalışır; işletme verisine personel/satış eklemez. Garson → mutfak → kasiyer
 akışında personel kayıtları, stok ve tek ödeme birlikte doğrulanır. Tarayıcı

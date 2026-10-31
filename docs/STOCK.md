@@ -39,7 +39,7 @@ iki ayrı sipariş tarafından tüketilmesini engeller.
 | Metot | Yol | Davranış |
 | --- | --- | --- |
 | GET | `/api/inventory/materials` | Stoklar, birimler, maliyetler ve `is_critical` |
-| GET | `/api/inventory/movements` | `material_id`, `after_id`, `limit` ile hareket defteri |
+| GET | `/api/inventory/movements` | `material_id`, `after_id`, `before_id`, `order`, `limit` ile hareket defteri |
 | POST | `/api/inventory/materials/{id}/movements` | Malzeme bazlı giriş veya tüketim |
 | GET | `/api/recipes/{product_id}` | Reçete ve sürümü; tanımsız üründe sürüm 0 |
 | PUT | `/api/recipes/{product_id}` | Yeni reçete sürümü ve geçmiş kaydı |
@@ -61,10 +61,39 @@ Her tür için gövdede pozitif miktar gönderilir. `opening` ve `consume`
 hareketlerini uygulama oluşturur. Defter kaydı silen/düzenleyen API yoktur.
 Hazırlık iptali, tüketim hareketinin `disposition` alanında görünür.
 
-Bu aşamada yönetim işlemleri Swagger üzerinden yapılır. Ayrı stok/reçete
-yönetim ekranı ve rol kontrolü sonraki arayüz/erişim aşamasındadır.
+Yönetici **Stok** ekranından bu işlemleri yapabilir. Yönetici dışındaki
+rollerde menü görünmez ve API stok/reçete okuma-yazmalarını reddeder.
 Stok bakiyesini doğrudan SQL ile değiştirmek hareket defterini bozar;
 uygulamanın hareket API'si kullanılmalıdır.
+
+## Yönetici ekranı — Aşama 4.2
+
+- **Hammaddeler:** isim araması, yalnızca kritikler filtresi, stok/eşik/birim
+  bilgisi. Kritik kararının kaynağı backend'dir. Bakiyeler 5 saniyede yenilenir.
+- **Hareket ekle:** hammadde, giriş/iade/zayiat/personel tüketimi/ikram türü,
+  pozitif miktar ve gerekçe. Birim seçilen hammaddeden alınır; birim dönüşümü
+  yapılmaz. Depoya iade gerçek malzeme iadesidir, ödeme iadesi değildir.
+- **Hareket defteri:** en yeni 50 kayıt, hammadde filtresi, eski kayıtları
+  yükleme ve açıkça yenileme. Yeni API parametreleri `order=desc` ve
+  `before_id`'dir; mevcut artan sıra/`after_id` sözleşmesi korunur.
+- **Reçeteler:** ürün seçimi, bir ürün başına hammadde/miktar satırları,
+  sürüm bilgisi ve gerekçeli kayıt. Aynı hammadde iki kez yazılamaz, boş
+  reçete kaydedilemez. Ondalık virgül veya nokta kabul edilir; miktarlar
+  float'a çevrilmeden, en fazla altı ondalık basamakla gönderilir.
+
+Reçete başka bir cihazda değişirse sunucu 409 döner; form otomatik ezilmez.
+**Güncel reçeteyi yükle** düğmesi sunucu sürümünü alıp mevcut taslağı yeniler.
+Ürün veya alt sekme değiştirildiğinde kaydedilmemiş reçete taslağı saklanmaz.
+
+Yazmadan önce tekrar anahtarı, gövde ve personel tarayıcıya kaydedilir.
+Yanıt kaybolursa yeni yazmalar engellenir; stok formu kapanarak ortak
+**Sonucu kontrol et** alanını erişilebilir bırakır. Reçete PUT isteği de
+yenilemeden sonra aynı anahtar ve gövdeyle sürdürülebilir. Oturum biterse
+aynı personel tekrar giriş yapar; başka personelin bekleyen yazması uygulanmaz.
+
+Hammadde açma, kritik eşik/birim değiştirme ve reçete geçmişi görüntüleme
+bu ekranın kapsamında değildir. Banka/ödeme iadesi ve ürün bazlı ikram da
+ayrı iş paketleridir.
 
 ## Geçiş ve kurulum
 
@@ -107,6 +136,15 @@ Gerçek PostgreSQL geçici şemalarıyla 46 backend testi; tekrar istek, son sto
 için eşzamanlı yarış, kısmi hata geri alma, reçete değişiminde tüketim kopyası,
 iptal/zayiat ve defter mutabakatı doğrulanmıştır. Frontend'de 4 istek güvenliği
 testi ve TypeScript kontrolü geçmiştir.
+
+Aşama 4.2 sonrası toplam 64 backend ve 11 frontend testi geçti. Yeni
+doğrulamalar: hareket defterinde azalan sıra/imleç/filtre, yönetici dışı
+stok/reçete yazmalarının reddi, kesin miktar sınırları, yinelenen reçete
+satırları ve yanıtı kaybolan PUT isteğinin kalıcı kayıttan tekrarı. Üretim
+derlemesi başarılıdır. Tarayıcı aracı erişilemediğinden görsel kabul bekler.
+Geçici şemada Next.js üretim proxy'si üzerinden stok girişi/tekrarı, hassas
+bakiyeler, reçete PUT/tekrar/sürüm çatışması, defter imleci ve rol reddi HTTP
+ile ayrıca doğrulandı; işletme verisine test hareketi eklenmedi.
 
 Yerel geçişten önce `data/backups/` altında bir PostgreSQL yedeği alındı.
 Bu klasör Git ve Docker build bağlamından hariçtir.

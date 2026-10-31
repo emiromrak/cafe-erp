@@ -60,6 +60,41 @@ uyuşmazlığıdır. Bilinmeyen gövde alanları reddedilir.
 
 ## Örnek akış
 
+Gönderilmemiş satırda adet **− / ×adet / +** ile ayarlanır. 1 adetten **−**
+ile 0'a düşürmek satırı gerekçe/onay istemeden kaldırır. API'de aynı davranış
+`PATCH /api/tabs/{id}/items/{item_id}` için `quantity:0` ile uygulanır; satır
+silinir, önceki miktar/ad/fiyat işlem geçmişinde korunur. Gönderilmiş,
+hazırlanıyor veya hazır satırda miktar değiştirme/0'a indirme reddedilir;
+çöp kutusu ile gerekçeli/onaylı iptal kullanılır.
+Hazırlık başladığında garson/kasiyer için bu iptal de kapanır; hazırlanıyor ve
+hazır kalemi mutfak/yönetici iptal edebilir. Tüm adisyon iptali de aynı koşulu
+denetler; böyle bir kalem varken garson/kasiyer toplu iptal yapamaz. Güncel
+durum sunucuda transaction içinde denetlenir; eski ekran kuralı aşamaz.
+
+Hazır kalemler otomatik süreyle gizlenmez. Hazır sütunundaki **Temizle**,
+mutfak/yönetici tarafından o anda görünen hazır kartları listeden kaldırır
+(tek istekte en fazla 1.000 kart). `POST /api/kitchen/ready/clear`,
+`{item_ids:[...]}` ve `Idempotency-Key` alır. İşlem `kitchen_cleared` olayıyla
+kalıcı saklanır; sayfa yenilemede geri gelmez, diğer ekranlar ilk yenilemede
+eşitlenir. Tıklama sonrasında yeni hazır olan veya istekte yer almayan kalemler
+temizlenmez. Bekleyen, hazırlanan, iptal edilmiş ve kapanmış adisyondaki
+kalemler atlanır. Tekrar istek ikinci temizlik oluşturmaz.
+
+Adisyon satırı `ready` olarak kalır; adisyon sürümü, hesap, ödeme ve stok
+değişmez. Temizleme, iptal veya tüm adisyonu kapatma işlemi değildir.
+
+Menüden aynı ürün tekrar eklendiğinde adı/fiyatı aynı olan gönderilmemiş
+satırın miktarı artırılır (iki çay tek satırda ×2). Gönderilmiş, hazırlanıyor,
+hazır veya iptal edilmiş satır değiştirilmez; yeni taslak satır açılır. Fiyat/ad
+değişmişse de yeni satır açılarak eski satış kopyası korunur. Satır başına
+10.000 adet sınırı ve tekrar anahtarı kuralları geçerlidir.
+
+Mutfak kartındaki **Ürünü iptal et**, gerekçe ve açık onay isteyen bir uyarı
+açar; **Vazgeç** kayıt oluşturmaz. Onaylanan iptal kalemin bütün miktarını
+hesaptan çıkarır ve KDS listesinden kaldırır. Hazırlık başlamadıysa stok
+değişmez; başladıysa tüketim zayiat sayılır ve geri eklenmez. Son kalem iptal
+edildiğinde adisyon açık kalır; tüm adisyonu kapatma servis personelindedir.
+
 `GET /api/tables` ve `GET /api/products` ile gerçek kimlikler alınır.
 Aşağıdaki örnekte masa/ürün kimlikleri temsildir; çağrılar gerçek kayıt üretir.
 Her adım için yeni bir `Idempotency-Key` kullanılır. Yanıttaki `id`, kalem `id`

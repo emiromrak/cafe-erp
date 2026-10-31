@@ -158,7 +158,7 @@ python backend/app/ai/train_forecast.py
 - [x] **Aşama 1 — Tamamlandı:** Adisyon, kalem, hazırlık durumu ve ödeme backend'i; güvenli tekrar istekler ve doğru satış raporlama.
 - [x] **Aşama 2 — Tamamlandı:** Tek masa için uçtan uca POS ve basit mutfak ekranı.
 - [x] **Aşama 3 — Backend tamamlandı:** SQL reçeteleri, hazırlıkta gerçek stok tüketimi ve hareket defteri.
-- [ ] **Aşama 4 (devam ediyor):** 4.1 personel girişi/roller ve personel yönetimi uygulandı. Sıradaki 4.2 stok/reçete yönetim ekranları; ardından yönetici özeti, mobil garson/canlı KDS ve gelişmiş ödeme.
+- [ ] **Aşama 4 (devam ediyor):** 4.1 personel/roller ve 4.2 yetkili stok/reçete ekranları uygulandı. Sıradaki 4.3 yönetici özeti; ardından mobil garson/canlı KDS ve gelişmiş ödeme. Yeni ekranların görsel kabulü bekliyor.
 - [ ] **Aşama 5:** Yedekleme, mutabakat ve pilot kafe doğrulaması.
 
 Ayrıntılı kapsam ve her aşamanın çıkış ölçütleri: [güncel yol haritası](docs/ROADMAP.md).
