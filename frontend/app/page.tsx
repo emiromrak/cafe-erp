@@ -102,6 +102,12 @@ function POS({user,onSwitch}:{user:Staff;onSwitch:()=>void}) {
   }, [refresh]);
 
   useEffect(() => { setConfirmed(false); }, [tab?.version, method, payment]);
+  useEffect(() => { setNotice(''); }, [view, selected]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(''), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   useEffect(() => {
     if (loaded && area !== 'all' && !tables.some(t => t.area === area)) setArea('all');
   }, [tables, area, loaded]);
@@ -182,7 +188,7 @@ function POS({user,onSwitch}:{user:Staff;onSwitch:()=>void}) {
         {view==='staff' && user.role==='admin' && <StaffPanel user={user}/>}
         {pending && <div className="alert warning" role="alert"><div><strong>{pending.actorId && pending.actorId!==user.id?'Bekleyen işlem başka personele ait; o hesapla giriş yapın.':'Son işlemin sonucu doğrulanmalı.'}</strong><p>Yeni işlemden önce aynı isteği güvenle tekrar gönderin. Sayfayı yenilemek işlemi iptal etmez.</p></div><Button disabled={busy || (!!pending.actorId && pending.actorId!==user.id)} onClick={() => void run(pending,true)}>{busy?<LoaderCircle className="animate-spin" size={16}/>:null}Sonucu kontrol et</Button></div>}
         {error && <div className="alert error" role="alert">{error}<button onClick={() => setError('')} aria-label="Uyarıyı kapat"><X size={17}/></button></div>}
-        {notice && <div className="alert success" role="status"><Check size={17}/>{notice}</div>}
+        {notice && <div className="alert success" role="status"><Check size={17}/>{notice}<button className="ml-auto" onClick={()=>setNotice('')} aria-label="Başarı bildirimini kapat"><X size={17}/></button></div>}
         {!connected && loaded && <div className="alert warning"><span>Sunucuya ulaşılamıyor. Son görüntülenen bilgiler güncel olmayabilir; yeni işlemler bekletiliyor.</span><Button variant="outline" onClick={() => void refresh()}>Yeniden bağlan</Button></div>}
         {view==='inventory' && user.role==='admin' && <InventoryPanel locked={locked} busy={busy} hasPending={!!pending} revision={inventoryRevision} recipeRevision={recipeRevision} onCommand={run} commandError={error}/>}
         {view==='tables' && !selected && <>

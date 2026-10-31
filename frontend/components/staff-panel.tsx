@@ -18,6 +18,11 @@ export function StaffPanel({user}:{user:Staff}) {
   const [notice, setNotice] = useState('');
   async function load() { setStaff(await request('/auth/staff')); }
   useEffect(() => { void load().catch(err=>setError(err.message)); }, []);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(''), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   function select(account:Staff|null) {
     setSelected(account); setUsername(account?.username || ''); setName(account?.name || '');
     setRole(account?.role || 'waiter'); setActive(account?.is_active ?? true); setPassword(''); setError(''); setNotice('');
