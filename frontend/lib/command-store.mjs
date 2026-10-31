@@ -6,7 +6,7 @@ export function readPending(storage) {
     if (key !== PREFIX && !key?.startsWith(`${PREFIX}:`)) continue;
     const command = JSON.parse(storage.getItem(key));
     if (!command || typeof command.path !== 'string' || typeof command.key !== 'string' ||
-        !command.body || !['POST', 'PATCH'].includes(command.method)) {
+        !command.body || !['POST', 'PATCH', 'PUT'].includes(command.method)) {
       throw new Error('Bekleyen işlem kaydı okunamadı; tarayıcı kaydını kontrol edin.');
     }
     return command;

@@ -19,6 +19,23 @@ from import_recipes import import_recipes
 
 
 class StockTests(TabFixture):
+    def test_ledger_latest_cursor_and_material_filter(self):
+        for index in range(4):
+            self.send('/api/inventory/materials/leaf/movements',{'kind':'receipt','quantity':'0.000001','unit':'gram','reason':f'Giriş {index}'})
+        latest=self.client.get('/api/inventory/movements?order=desc&limit=2&material_id=leaf').json()
+        self.assertEqual(len(latest),2)
+        self.assertGreater(latest[0]['id'],latest[1]['id'])
+        self.assertEqual(latest[0]['material_name'],'Çay yaprağı')
+        older=self.client.get(f"/api/inventory/movements?order=desc&limit=2&material_id=leaf&before_id={latest[-1]['id']}").json()
+        self.assertEqual(len(older),2)
+        self.assertLess(older[0]['id'],latest[-1]['id'])
+        self.assertEqual(len({entry['id'] for entry in latest+older}),4)
+        ascending=self.client.get('/api/inventory/movements?limit=2').json()
+        self.assertLess(ascending[0]['id'],ascending[1]['id'])
+        self.assertEqual(self.client.get('/api/inventory/movements?material_id=missing&order=desc').json(),[])
+        for query in ('before_id=-1','before_id=0','order=invalid','limit=201'):
+            self.assertEqual(self.client.get('/api/inventory/movements?'+query).status_code,422)
+
     def balance(self):
         with self.engine.connect() as conn:
             return conn.execute(text("SELECT current_stock FROM raw_materials WHERE id='leaf'")).scalar_one()

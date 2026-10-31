@@ -1,9 +1,12 @@
 'use client';
 
+import '@/components/inventory.css';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Armchair, ArrowLeft, ArrowRight, Banknote, Check, CheckCheck, ChefHat, Coffee, CreditCard, Grid2X2, LoaderCircle, Minus, Plus, Search, Send, Soup, Trash2, Wifi, WifiOff, X } from 'lucide-react';
 import { AuthGate } from '@/components/auth-gate';
 import { roleNames, type Staff } from '@/lib/staff';
+import { InventoryPanel } from '@/components/inventory-panel';
 import { StaffPanel } from '@/components/staff-panel';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/dialog';
@@ -20,7 +23,9 @@ export default function Page() {
 }
 
 function POS({user,onSwitch}:{user:Staff;onSwitch:()=>void}) {
-  const [view, setView] = useState<'tables'|'kitchen'|'staff'>(user.role==='kitchen'?'kitchen':'tables');
+  const [view, setView] = useState<'tables'|'kitchen'|'staff'|'inventory'>(user.role==='kitchen'?'kitchen':'tables');
+  const [inventoryRevision,setInventoryRevision] = useState(0);
+  const [recipeRevision,setRecipeRevision] = useState(0);
   const [tables, setTables] = useState<Table[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -106,23 +111,30 @@ function POS({user,onSwitch}:{user:Staff;onSwitch:()=>void}) {
     void refresh();
   }
 
-  async function run(command: Command, retry = false) {
-    if (gate.current || (pendingRef.current && !retry)) return;
-    if (command.actorId && command.actorId !== user.id) { setError('Bekleyen işlem başka personele ait. O hesapla giriş yapın.'); return; }
+  async function run(command: Command, retry = false): Promise<boolean> {
+    if (gate.current || (pendingRef.current && !retry)) return false;
+    if (command.actorId && command.actorId !== user.id) { setError('Bekleyen işlem başka personele ait. O hesapla giriş yapın.'); return false; }
     command = {...command, actorId:user.id};
     gate.current = true; epoch.current++; setBusy(true); setError(''); setNotice('');
     try {
       // Sunucuya göndermeden önce anahtarı sakla: yenileme ve ağ kesintisinde korunur.
       savePending(localStorage, command);
       pendingRef.current = command; setPending(command);
-      const result: Tab = await sendCommand(command);
+      const result = await sendCommand(command);
       removePending(localStorage, command);
       pendingRef.current = readPending(localStorage); setPending(pendingRef.current);
-      if (result.table_id === selection.current) setTab(result.status === 'open' ? result : null);
-      if (command.path.endsWith('/payments')) {
-        setPayment(false); setNotice(`${money(result.payment!.amount_cents)} ödeme kaydedildi. Masa boşaltıldı.`);
-      } else setNotice('İşlem kaydedildi.');
-      setCancel(null); setReason(''); setConnected(true);
+      if (command.path.startsWith('/tabs')) {
+        if (result.table_id === selection.current) setTab(result.status === 'open' ? result : null);
+        if (command.path.endsWith('/payments')) {
+          setPayment(false); setNotice(`${money(result.payment!.amount_cents)} ödeme kaydedildi. Masa boşaltıldı.`);
+        } else setNotice('İşlem kaydedildi.');
+        setCancel(null); setReason('');
+      } else {
+        setInventoryRevision(value=>value+1);
+        if(command.path.startsWith('/recipes/'))setRecipeRevision(value=>value+1);
+        setNotice(command.path.startsWith('/recipes/')?'Reçete kaydedildi.':'Stok hareketi kaydedildi.');
+      }
+      setConnected(true); return true;
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
       if (status >= 400 && status < 500 && status !== 401 && status !== 403) {
@@ -132,6 +144,7 @@ function POS({user,onSwitch}:{user:Staff;onSwitch:()=>void}) {
       }
       setError(err instanceof Error ? err.message : 'İşlem tamamlanamadı.');
       if (!status || status >= 500) setConnected(false);
+      return false;
     } finally {
       gate.current = false; setBusy(false); void refresh();
     }
@@ -156,17 +169,19 @@ function POS({user,onSwitch}:{user:Staff;onSwitch:()=>void}) {
       <nav aria-label="Ana menü">
         {user.role!=='kitchen' && <button className={view==='tables'?'nav-item active':'nav-item'} onClick={() => setView('tables')}><Grid2X2 size={21}/><span>Masalar</span></button>}
         <button className={view==='kitchen'?'nav-item active':'nav-item'} onClick={() => setView('kitchen')}><ChefHat size={23}/><span>Mutfak</span></button>
+        {user.role==='admin' && <button className={view==='inventory'?'nav-item active':'nav-item'} onClick={()=>setView('inventory')}><Soup size={22}/><span>Stok</span></button>}
         {user.role==='admin' && <button className={view==='staff'?'nav-item active':'nav-item'} onClick={()=>setView('staff')}><Grid2X2 size={21}/><span>Personel</span></button>}
       </nav>
     </aside>
     <div className="workspace">
-      <header className="topbar"><div><span className="eyebrow">İŞLETME ÇALIŞMA ALANI</span><div className="text-sm font-medium mt-1">Servis yönetimi <span className="text-stone-300 mx-2">/</span> {view==='staff'?'Personel':view==='kitchen'?'Mutfak':selected?table?.name || 'Masa':'Masalar'}</div></div><div className={`connection ${connected?'':'offline'}`}>{connected?<Wifi size={15}/>:<WifiOff size={15}/>}<span>{connected?'Bağlı':loaded?'Bağlantı yok':'Bağlanıyor…'}</span></div><div className="session-menu"><span>{user.name} · {roleNames[user.role]}</span><Button variant="outline" disabled={busy} onClick={()=>{if(!gate.current)onSwitch();}}>Personel değiştir</Button><Button variant="outline" disabled={busy} onClick={async()=>{try{await request('/auth/logout',{method:'POST'});window.location.reload();}catch(err){setError(err instanceof Error?err.message:'Çıkış yapılamadı.');}}}>Çıkış</Button></div></header>
+      <header className="topbar"><div><span className="eyebrow">İŞLETME ÇALIŞMA ALANI</span><div className="text-sm font-medium mt-1">Servis yönetimi <span className="text-stone-300 mx-2">/</span> {view==='inventory'?'Stok ve reçeteler':view==='staff'?'Personel':view==='kitchen'?'Mutfak':selected?table?.name || 'Masa':'Masalar'}</div></div><div className={`connection ${connected?'':'offline'}`}>{connected?<Wifi size={15}/>:<WifiOff size={15}/>}<span>{connected?'Bağlı':loaded?'Bağlantı yok':'Bağlanıyor…'}</span></div><div className="session-menu"><span>{user.name} · {roleNames[user.role]}</span><Button variant="outline" disabled={busy} onClick={()=>{if(!gate.current)onSwitch();}}>Personel değiştir</Button><Button variant="outline" disabled={busy} onClick={async()=>{try{await request('/auth/logout',{method:'POST'});window.location.reload();}catch(err){setError(err instanceof Error?err.message:'Çıkış yapılamadı.');}}}>Çıkış</Button></div></header>
       <main>
         {view==='staff' && user.role==='admin' && <StaffPanel user={user}/>}
         {pending && <div className="alert warning" role="alert"><div><strong>{pending.actorId && pending.actorId!==user.id?'Bekleyen işlem başka personele ait; o hesapla giriş yapın.':'Son işlemin sonucu doğrulanmalı.'}</strong><p>Yeni işlemden önce aynı isteği güvenle tekrar gönderin. Sayfayı yenilemek işlemi iptal etmez.</p></div><Button disabled={busy || (!!pending.actorId && pending.actorId!==user.id)} onClick={() => void run(pending,true)}>{busy?<LoaderCircle className="animate-spin" size={16}/>:null}Sonucu kontrol et</Button></div>}
         {error && <div className="alert error" role="alert">{error}<button onClick={() => setError('')} aria-label="Uyarıyı kapat"><X size={17}/></button></div>}
         {notice && <div className="alert success" role="status"><Check size={17}/>{notice}</div>}
         {!connected && loaded && <div className="alert warning"><span>Sunucuya ulaşılamıyor. Son görüntülenen bilgiler güncel olmayabilir; yeni işlemler bekletiliyor.</span><Button variant="outline" onClick={() => void refresh()}>Yeniden bağlan</Button></div>}
+        {view==='inventory' && user.role==='admin' && <InventoryPanel locked={locked} busy={busy} hasPending={!!pending} revision={inventoryRevision} recipeRevision={recipeRevision} onCommand={run} commandError={error}/>}
         {view==='tables' && !selected && <>
           <div className="page-heading"><div><h1>Servise hazır.</h1><p>Sipariş almak veya açık hesabı görmek için bir masa seçin.</p></div><div className="summary"><span className="summary-dot"/><strong>{occupied}</strong> dolu <span className="text-stone-300">/</span><strong>{tables.length-occupied}</strong> boş</div></div>
           <div className="section-toolbar"><div className="tabs"><button className={area==='all'?'selected':''} onClick={() => setArea('all')}>Tüm alanlar</button>{Array.from(new Set(tables.map(t => t.area))).map(a => <button key={a} className={area===a?'selected':''} onClick={() => setArea(a)}>{a}</button>)}</div><span className="text-xs text-stone-400">{tables.length} masa</span></div>

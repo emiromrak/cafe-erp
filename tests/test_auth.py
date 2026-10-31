@@ -128,6 +128,10 @@ class AuthTests(TabFixture):
                 self.assertEqual(client.get(path).status_code,200,(role,path))
             for path in ('/api/inventory/materials','/api/inventory/movements','/api/recipes/tea','/api/ai/sales-summary','/api/auth/staff'):
                 self.assertEqual(client.get(path).status_code,403,(role,path))
+            response=client.post('/api/inventory/materials/leaf/movements',json={'kind':'receipt','quantity':'1','unit':'gram','reason':'Yetki testi'},headers={'Idempotency-Key':uuid.uuid4().hex})
+            self.assertEqual(response.status_code,403,role)
+            response=client.put('/api/recipes/tea',json={'expected_version':1,'reason':'Yetki testi','lines':[{'material_id':'leaf','quantity':'1'}]},headers={'Idempotency-Key':uuid.uuid4().hex})
+            self.assertEqual(response.status_code,403,role)
             self.assertEqual(client.get('/api/tabs').status_code,403 if role=='kitchen' else 200)
             body = {'expected_version':0,'amount_cents':100,'method':'cash'}
             response = client.post('/api/tabs/999999/payments',json=body,headers={'Idempotency-Key':uuid.uuid4().hex})

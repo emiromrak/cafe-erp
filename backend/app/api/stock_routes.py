@@ -48,12 +48,18 @@ def materials():
 
 @router.get('/inventory/movements', summary='Stok hareket defteri ve üretim iptal durumu')
 def movements(material_id: str | None = None, after_id: Annotated[int, Query(ge=0,le=9223372036854775807)] = 0,
-              limit: Annotated[int, Query(ge=1,le=200)] = 100):
+              limit: Annotated[int, Query(ge=1,le=200)] = 100,
+              before_id: Annotated[int | None, Query(gt=0,le=9223372036854775807)] = None,
+              order: Literal['asc','desc'] = 'asc'):
     with decision_engine._engine().connect() as conn:
-        result = [dict(r) for r in conn.execute(text('''SELECT s.*,i.disposition FROM stock_movements s
+        # Sıralama SQL'e yalnızca Literal ile doğrulanan iki sabitten eklenir.
+        result = [dict(r) for r in conn.execute(text('''SELECT s.*,m.name AS material_name,i.disposition FROM stock_movements s
+            JOIN raw_materials m ON m.id=s.material_id
             LEFT JOIN item_materials i ON i.item_id=s.item_id AND i.material_id=s.material_id
             WHERE s.id>:after AND (CAST(:material AS text) IS NULL OR s.material_id=:material)
-            ORDER BY s.id LIMIT :limit'''), {'after':after_id,'material':material_id,'limit':limit}).mappings()]
+              AND (CAST(:before AS bigint) IS NULL OR s.id<:before)
+            ORDER BY s.id ''' + order + ' LIMIT :limit'),
+            {'after':after_id,'material':material_id,'limit':limit,'before':before_id}).mappings()]
         return jsonable_encoder(result, custom_encoder={Decimal:str})
 
 
