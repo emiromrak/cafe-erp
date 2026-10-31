@@ -19,6 +19,7 @@ Bu depoda çalışırken ajanın temel görevi:
 - `backend/app/api/ai_routes.py`: AI REST servisleri (`/api/ai/...`).
 - `backend/app/stock_service.py`: kesin hassasiyetli stok, reçete ve üretim tüketimi.
 - `backend/app/api/stock_routes.py`: stok hareketleri ve reçete API'leri.
+- `backend/app/auth.py`, `backend/app/api/auth_routes.py`: personel oturumları ve rol kontrolü; `docs/AUTH.md` kurulum ve yetki matrisi.
 - `docs/STOCK.md`: hazırlıkta tüketim, iptal/zayiat politikası ve kurulum.
 - `backend/app/ai/decision_engine.py`: NLU kural motoru ve ciro/yoğunluk/stok sorgulayıcı.
 - `backend/app/ai/predictor.py`: LightGBM çıkarımı ve reçete burn-rate simülasyonu.

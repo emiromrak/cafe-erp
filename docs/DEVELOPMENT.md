@@ -59,14 +59,34 @@ reçete sürümleri eklendi. 46 backend ve 4 frontend testi geçti; TypeScript v
 üretim derlemesi doğrulandı. İnceleme bulguları `REVIEW_2026-10-31.md`, stok
 politikası ve kurulum `STOCK.md` dosyasındadır.
 
-1. **Sıradaki — Aşama 4:** kimlik doğrulama/roller, yetkili stok yönetim ekranları; mobil garson, canlı KDS ve gelişmiş ödeme.
+1. **Devam eden — Aşama 4:** 4.1 personel girişi/roller ve personel yönetimi uygulandı. **Sıradaki 4.2** yetkili stok/reçete yönetimi; ardından yönetici özeti, mobil garson/canlı KDS ve gelişmiş ödeme.
 2. **Aşama 5:** yedekten dönüş, kasa/stok mutabakatı, kesinti davranışı ve gerçek veriyle pilot.
 
 ## Mevcut sınırlar
 
 - Eski SQLite kaynağı altı uygulama tablosu içerir. `CODEX.md` ve eski mimari belgelerindeki bazı alanlar hedef tasarımdır.
 - SQL reçeteleri operasyonel kaynaktır; JSON yalnızca ilk örnek aktarım kaynağıdır. Ürün bazlı ikram ve ayrı stok/reçete yönetim ekranı henüz yoktur; malzeme hareketleri API'den kaydedilir.
-- Backend için kimlik doğrulama ve rol kontrolü henüz yoktur. Varsayılan sunucu yerel `127.0.0.1` adresinde çalışır; dış erişim öncesinde erişim kontrolü ve CORS yapılandırması tamamlanmalıdır.
+- Backend personel oturumu ve rol kontrolü uygular. İlk yönetici `scripts/create_admin.py` ile oluşturulur. Varsayılan sunucu yereldir; çok cihazlı kullanım öncesinde HTTPS ve güvenli çerez/origin ayarları gerekir. Ayrıntılar `AUTH.md`.
 - Telegram zamanlanmış sabah/akşam raporu göndermiyor; gelen mesajlara yanıt veriyor.
 - Uygulama testleri `tests/` altındadır.
 - Örnek veri üreteci mevcut tabloları yeniden oluşturur; canlı işletme verisinde çalıştırılmamalıdır.
+
+## Aşama 4.1 — 31 Ekim 2026
+
+`004_staff_auth`, scrypt parola özetleri, iptal edilebilir 12 saatlik oturum,
+yönetici/kasiyer/garson/mutfak rolleri, giriş/çıkış ve personel yönetimi eklendi.
+Ödeme kasiyer/yöneticiye, hazırlık mutfak/yöneticiye, stok/reçete ve finans
+API'leri yöneticiye sınırlandı. İş yazmaları personelle birlikte atomik
+denetim kaydına alınır; tekrar anahtarı farklı personelde kullanılamaz.
+
+59 backend ve 6 frontend testi, TypeScript ve üretim derlemesi geçti. Geçici
+şemada çalışan Next.js proxy'sinde giriş, Cookie/Set-Cookie, güvenlik başlığı,
+Origin reddi, hesap açma, rol dışı erişim ve çıkış HTTP üzerinden doğrulandı.
+Tarayıcı erişim aracı kullanılamadığından görsel doğrulama bekler. İşletme
+parolası varsayılmadı; ilk yönetici kurulumu terminalde kullanıcıya aittir.
+
+Ortak POS güncellemesi: parola alt sınırı tüm oluşturma/sıfırlama/kurulum
+akışlarında 4 karaktere indirildi. Personel seçimi, dokunmatik sayısal giriş ve
+sayfa yenilemeden oturum değiştirme eklendi. Eski oturum iptal edilir; yanlış
+parola mevcut oturumu bozmaz. Eski istekten geciken 401 yeni oturumu kapatmaz.
+Bu güncellemeyle 62 backend ve 7 frontend testi bulunur.

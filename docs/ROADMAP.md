@@ -1,6 +1,6 @@
 # 🗺️ CafeERP Geliştirme Yol Haritası
 
-30 Ekim 2026 tarihinde mevcut kod ve bağımlılıklara göre güncellendi.
+31 Ekim 2026 tarihinde mevcut kod ve doğrulanan iş paketlerine göre güncellendi.
 Geliştirme sırasının ana kaynağı bu belgedir. Eski faz numaraları yerine aşağıdaki aşamalar izlenir. İşaretli maddeler mevcut uygulamayı, boş maddeler planlanan işleri gösterir.
 
 ## İşletme modeli kararı
@@ -75,13 +75,42 @@ ikram/indirim ve stok yönetim ekranı sonraki arayüz işidir. Ayrıntılar `ST
 
 **Çıkış ölçütü:** Örnek ürün satışında beklenen hammadde hareketleri oluşur; tekrar istek ve iptal senaryoları stoğu yanlış değiştirmez.
 
-## Aşama 4 — Erişim kontrolü ve operasyonel arayüzler (sıradaki iş)
+## Aşama 4 — Erişim kontrolü ve operasyonel arayüzler (devam ediyor)
 
-- [ ] Yerel ağda dahi çok cihazlı kullanıma açmadan önce personel kimlik doğrulaması, kasiyer/garson/mutfak/yönetici yetkileri ve CORS yapılandırması.
+### 4.1 — Personel girişi ve roller (uygulandı)
+
+- [x] Personel kullanıcı adı/parolası, scrypt parola özeti, veritabanında iptal edilebilir 12 saatlik oturum ve güvenli çerez seçenekleri.
+- [x] Yönetici/kasiyer/garson/mutfak rollerini API'de uygulamak; yetkisiz okumayı ve yazmayı reddetmek.
+- [x] Giriş/çıkış ekranı; rolüne uygun POS/KDS işlemleri ve yöneticiye özel personel oluşturma/düzenleme ekranı.
+- [x] Ortak POS'ta hesap seçimi ve en az 4 karakterli parolayla hızlı personel geçişi; dokunmatik sayısal tuş takımı, eski oturum iptali ve işlem sorumluluğunun korunması.
+- [x] Parola/rol/aktiflik değişince tüm oturumları kapatmak; son aktif yöneticiyi ve eşzamanlı düzenlemeleri korumak.
+- [x] Hatalı giriş sınırı, izinli Origin/CORS ve yazmalarda güvenlik başlığı denetimi.
+- [x] Sipariş/stok yazmalarında personel kaydını iş işlemiyle atomik saklamak; tekrar anahtarını personele bağlamak.
+- [x] Gerçek PostgreSQL üzerinde rol, oturum, iptal, tekrar ve eşzamanlı yönetici testleri.
+
+İlk işletme yöneticisi parolası terminalde kullanıcı tarafından belirlenir:
+`docker compose run --rm api python scripts/create_admin.py`. Örnek verideki
+PIN'ler giriş hesabına dönüştürülmez. Kurulum, roller ve sınırlar: `AUTH.md`.
+Tarayıcıyla görsel doğrulama araç erişimi nedeniyle bekler; üretim derlemesi
+ve API/oturum testleri uygulanmıştır. Bu paket Aşama 4'ün tamamı değildir.
+
+### 4.2 — Yetkili stok ve reçete yönetimi (sıradaki iş paketi)
+
+- [ ] Yönetici için kritik stok listesi, stok girişi/iade/zayiat formu ve hareket defteri.
+- [ ] Reçete görüntüleme ve sürüm denetimli düzenleme; birim, hassas miktar ve gerekçe doğrulaması.
+- [ ] Tekrar anahtarı, ağ kesintisi ve yetki değişikliği davranışlarını bu ekranlarda doğrulamak.
+
+### 4.3 — Yönetici özeti
+
+- [ ] Gerçekleşen satış, kritik stok ve tahmin kartları; tahmin ve yedek veri durumunun görünür olması.
+
+### 4.4 — Mobil garson ve canlı KDS
+
 - [ ] Mobil garson PWA; masa başından sipariş alma ve açık hesabı görüntüleme.
 - [ ] Canlı KDS ve masa güncellemeleri; WebSocket yeniden bağlandığında sunucudan durum eşitleme.
-- [ ] Yönetici ekranında gerçekleşen satış, kritik stok ve tahmin kartları; tahmin ve yedek veri durumunun görünür olması.
-- [ ] Yetkili yönetici için stok girişi, hareket defteri ve reçete düzenleme ekranları.
+
+### 4.5 — Gelişmiş ödeme ve ikinci işletme modeli
+
 - [ ] Parçalı ödeme, hesap bölme ve ürün varyasyonları; varyasyon fiyatı ve reçete etkisinin birlikte yönetilmesi.
 - [ ] İşletmeye göre masa servisi / kasada peşin ödeme modelini seçebilme; self-servis için ödeme ve hazırlık yaşam döngülerini ayırma, ödeme sonrası hazırlık ve tekrar istek testleri.
 
@@ -106,4 +135,7 @@ ikram/indirim ve stok yönetim ekranı sonraki arayüz işidir. Ayrıntılar `ST
 
 ## Sıradaki iş paketi
 
-**Aşama 4:** personel kimlik doğrulaması ve roller → yetkili yönetim ekranları → mobil garson ve canlı KDS. Stok politikası `STOCK.md`, inceleme sonucu `REVIEW_2026-10-31.md` dosyasındadır. Sonraki aşamaya ilgili çıkış ölçütü sağlandığında geçilir.
+**Aşama 4.2:** yetkili stok ve reçete yönetim ekranları. 4.1 personel girişi/rolleri
+uygulandı; ilk yönetici kurulumu kullanıcı parolasıyla tamamlanır. Sonrasında
+4.3 yönetici özeti → 4.4 mobil garson/canlı KDS → 4.5 gelişmiş ödeme ve
+self-servis sırası izlenir. Aşama 5'e geçmeden Aşama 4 çıkış ölçütleri sağlanır.

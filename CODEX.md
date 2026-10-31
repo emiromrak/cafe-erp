@@ -343,7 +343,7 @@ Güncel geliştirme sırası ve çıkış ölçütleri için ana kaynak `docs/RO
 - [x] **Aşama 1 (tamamlandı):** Adisyon ve ödeme backend'i; kalemler, hazırlık durumları, iptal geçmişi, kuruş cinsinden işlem tutarları, tekrar istek ve eşzamanlılık koruması.
 - [x] **Aşama 2 (tamamlandı):** Tek masa için uçtan uca POS ve basit KDS.
 - [x] **Aşama 3 (backend tamamlandı):** SQL reçeteleri, hazırlıkta tüketim ve izlenebilir stok hareketleri. İptal/zayiat politikası `docs/STOCK.md` dosyasındadır.
-- [ ] **Aşama 4 (sıradaki):** Çok cihazlı erişimden önce kimlik doğrulama/roller; stok yönetimi, mobil garson, canlı KDS ve gelişmiş ödeme akışları.
+- [ ] **Aşama 4 (devam ediyor):** 4.1 personel girişi/roller ve personel yönetimi uygulandı (`docs/AUTH.md`). Sıradaki 4.2 stok/reçete ekranları; ardından yönetici özeti, mobil garson/canlı KDS ve gelişmiş ödeme.
 - [ ] **Aşama 5:** Yedekleme/geri yükleme, mutabakat ve gerçek kafede pilot.
 
 Tahmini stok erimesi ve gerçek stok hareketleri ayrı tutulur. `003_inventory` ile gerçek tüketim hazırlık başladığında kaydedilir; mevcut reçetenin kopyası korunur. Güncel politika ve API `docs/STOCK.md`, inceleme `docs/REVIEW_2026-10-31.md` dosyasındadır. Bu belgenin eski SQLite/ortalama tüketim açıklamaları tarihsel tasarımdır; güncel operasyonel kaynak SQL reçeteleridir.

@@ -2,6 +2,8 @@
 
 31 Ekim 2026: Aşama 3 backend'i. Ürün reçeteleri SQL'de tek operasyonel kaynaktır.
 Üretim tüketimi, satış tahmini ve geçmiş satış cirosu ayrı tutulur.
+Aşama 4.1 itibarıyla stok/reçete uçları yönetici oturumu ister; yazmalara
+`X-CafeERP-Request: 1` ve mevcut tekrar anahtarı eklenir. Kurulum: `AUTH.md`.
 
 ## Tüketim ve iptal politikası
 

@@ -9,6 +9,7 @@ docker compose build api
 docker compose run --rm api python -m alembic upgrade head
 docker compose run --rm api python scripts/import_sqlite.py
 docker compose run --rm api python scripts/import_recipes.py
+docker compose run --rm api python scripts/create_admin.py
 docker compose up -d --wait api
 docker compose ps
 docker compose logs -f api
@@ -24,6 +25,8 @@ POS ve mutfak ekranı: `docker compose up -d --build --wait frontend`.
 Arayüz http://localhost:3000 adresindedir; API bağlantısı Docker ağı üzerinden
 kurulur. Frontend ve API yalnızca yerel bilgisayara açıktır. Arayüz geliştirme
 ve izole tarayıcı testi için `../frontend/README.md` dosyasına bakın.
+İlk yönetici kullanıcı adı/parolası terminalde belirlenir. Mevcut kurulumda
+`004_staff_auth` geçişi ve ilk hesap kurulumu gerekir; ayrıntılar `AUTH.md`.
 
 `Dockerfile`, Python 3.12 ve LightGBM için OpenMP çalışma zamanını kurar.
 Saat dilimi `Europe/Istanbul` olarak ayarlanır.
@@ -38,7 +41,9 @@ iki dosya güncellenmeli ve imaj yeniden oluşturulmalıdır.
   önemli verileri ayrıca yedekleyin.
 - `.env`, `.venv`, Git geçmişi ve yerel loglar imaja dahil edilmez.
 - Compose, kökteki `.env` dosyasından konum ve Telegram ayarlarını okur.
-  API servisine yalnızca konum ayarları aktarılır.
+  API servisine konum, veritabanı ve `CAFE_ALLOWED_ORIGINS` / `CAFE_COOKIE_SECURE`
+  erişim ayarları aktarılır. Varsayılan portlar yerel kalır; gerçek cihazlar
+  için HTTPS ve `CAFE_COOKIE_SECURE=true` yapılandırması gerekir.
 - Telegram logları `telegram-logs` adlı Docker volume'ünde saklanır.
   PostgreSQL verileri `postgres-data` volume'ündedir. `docker compose down -v`
   her iki volume'ü ve içindeki verileri siler.

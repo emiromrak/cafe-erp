@@ -1,8 +1,8 @@
 # Adisyon ve ödeme API'si
 
 Aşama 1, yerel geliştirme için tek masada tam tahsilat akışını sağlar.
-Kimlik doğrulama ve rol kontrolü henüz yoktur; çok cihazlı/dış erişim
-Aşama 4'te ele alınır. API adresi `http://localhost:8000`, etkileşimli sözleşme
+Personel oturumu ve rol kontrolü Aşama 4.1 ile eklendi; kurulum ve istek
+başlıkları `AUTH.md` dosyasındadır. API adresi `http://localhost:8000`, etkileşimli sözleşme
 ve gövde şemaları `/docs` altındadır.
 
 ## Kurulum ve güncelleme
@@ -64,6 +64,9 @@ uyuşmazlığıdır. Bilinmeyen gövde alanları reddedilir.
 Aşağıdaki örnekte masa/ürün kimlikleri temsildir; çağrılar gerçek kayıt üretir.
 Her adım için yeni bir `Idempotency-Key` kullanılır. Yanıttaki `id`, kalem `id`
 ve `version` sonraki adımda kullanılmalıdır.
+Önce yönetici hesabıyla giriş yapıp oturum çerezini isteklere ekleyin; tüm
+yazmalarda `X-CafeERP-Request: 1` gerekir. Tek hesapla bu örneğin tamamını
+yalnızca yönetici çalıştırabilir; diğer roller kendi adımlarını yapar.
 
 ```text
 POST /api/tabs
@@ -98,7 +101,8 @@ Böylece mevcut AI satış raporu ve eğitim sorguları yeni satışları da tek
 görür. Ödenmemiş/iptal edilmiş adisyonlar ciroya eklenmez.
 
 Satış zamanı açıkça `Europe/Istanbul` saat diliminde kaydedilir. Yeni satışta
-personel ve hava alanları henüz doldurulmaz; gözlenmeyen bilgi üretilmez.
+`orders` içindeki eski personel ve hava alanları henüz doldurulmaz;
+personel sorumluluğu Aşama 4.1 itibarıyla `staff_audit` kaydında tutulur.
 
 ## Doğrulama
 
