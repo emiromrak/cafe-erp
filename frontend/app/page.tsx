@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Armchair, ArrowLeft, ArrowRight, Banknote, Check, CheckCheck, ChefHat, Coffee, CreditCard, Grid2X2, LoaderCircle, Minus, Plus, Search, Send, Soup, Trash2, Wifi, WifiOff, X } from 'lucide-react';
+import { AuthGate } from '@/components/auth-gate';
+import { roleNames, type Staff } from '@/lib/staff';
+import { StaffPanel } from '@/components/staff-panel';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/dialog';
 import { ApiError, createCommand, request, sendCommand } from '@/lib/api.mjs';
@@ -10,10 +13,14 @@ import type { Category, Item, KitchenItem, OpenTab, Product, Tab, Table } from '
 
 const money = (cents: number) => new Intl.NumberFormat('tr-TR', {style:'currency',currency:'TRY'}).format(cents / 100);
 const statusNames: Record<Item['status'], string> = {draft:'Gönderilmedi', sent:'Bekliyor', preparing:'Hazırlanıyor', ready:'Hazır', cancelled:'İptal edildi'};
-type Command = ReturnType<typeof createCommand>;
+type Command = ReturnType<typeof createCommand> & {actorId?:number};
 
-export default function POS() {
-  const [view, setView] = useState<'tables'|'kitchen'>('tables');
+export default function Page() {
+  return <AuthGate>{(user,onSwitch)=><POS key={`${user.id}:${user.version}`} user={user} onSwitch={onSwitch}/>}</AuthGate>;
+}
+
+function POS({user,onSwitch}:{user:Staff;onSwitch:()=>void}) {
+  const [view, setView] = useState<'tables'|'kitchen'|'staff'>(user.role==='kitchen'?'kitchen':'tables');
   const [tables, setTables] = useState<Table[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -51,7 +58,7 @@ export default function POS() {
     const generation = epoch.current;
     const tableId = selection.current;
     try {
-      const [ts, ps, cs, os, ks] = await Promise.all([
+      const [ts, ps, cs, os, ks] = user.role==='kitchen' ? [[], [], [], [], await request('/kitchen/items')] : await Promise.all([
         request('/tables'), request('/products'), request('/categories'), request('/tabs'), request('/kitchen/items')
       ]);
       const open = (os as OpenTab[]).find(t => t.table_id === tableId);
@@ -68,7 +75,7 @@ export default function POS() {
       refreshing.current = false;
       if (refreshAgain.current) { refreshAgain.current = false; void refresh(); }
     }
-  }, []);
+  }, [user.role]);
 
   useEffect(() => {
     function restore() {
@@ -101,6 +108,8 @@ export default function POS() {
 
   async function run(command: Command, retry = false) {
     if (gate.current || (pendingRef.current && !retry)) return;
+    if (command.actorId && command.actorId !== user.id) { setError('Bekleyen işlem başka personele ait. O hesapla giriş yapın.'); return; }
+    command = {...command, actorId:user.id};
     gate.current = true; epoch.current++; setBusy(true); setError(''); setNotice('');
     try {
       // Sunucuya göndermeden önce anahtarı sakla: yenileme ve ağ kesintisinde korunur.
@@ -116,7 +125,7 @@ export default function POS() {
       setCancel(null); setReason(''); setConnected(true);
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
-      if (status >= 400 && status < 500) {
+      if (status >= 400 && status < 500 && status !== 401 && status !== 403) {
         removePending(localStorage, command);
         pendingRef.current = readPending(localStorage); setPending(pendingRef.current);
         setPayment(false); setCancel(null);
@@ -145,14 +154,16 @@ export default function POS() {
       <div className="brand-mark"><Coffee size={25}/></div>
       <span className="rail-label">CAFE<span>ERP</span></span>
       <nav aria-label="Ana menü">
-        <button className={view==='tables'?'nav-item active':'nav-item'} onClick={() => setView('tables')}><Grid2X2 size={21}/><span>Masalar</span></button>
+        {user.role!=='kitchen' && <button className={view==='tables'?'nav-item active':'nav-item'} onClick={() => setView('tables')}><Grid2X2 size={21}/><span>Masalar</span></button>}
         <button className={view==='kitchen'?'nav-item active':'nav-item'} onClick={() => setView('kitchen')}><ChefHat size={23}/><span>Mutfak</span></button>
+        {user.role==='admin' && <button className={view==='staff'?'nav-item active':'nav-item'} onClick={()=>setView('staff')}><Grid2X2 size={21}/><span>Personel</span></button>}
       </nav>
     </aside>
     <div className="workspace">
-      <header className="topbar"><div><span className="eyebrow">İŞLETME ÇALIŞMA ALANI</span><div className="text-sm font-medium mt-1">Servis yönetimi <span className="text-stone-300 mx-2">/</span> {view==='kitchen'?'Mutfak':selected?table?.name || 'Masa':'Masalar'}</div></div><div className={`connection ${connected?'':'offline'}`}>{connected?<Wifi size={15}/>:<WifiOff size={15}/>}<span>{connected?'Bağlı':loaded?'Bağlantı yok':'Bağlanıyor…'}</span></div></header>
+      <header className="topbar"><div><span className="eyebrow">İŞLETME ÇALIŞMA ALANI</span><div className="text-sm font-medium mt-1">Servis yönetimi <span className="text-stone-300 mx-2">/</span> {view==='staff'?'Personel':view==='kitchen'?'Mutfak':selected?table?.name || 'Masa':'Masalar'}</div></div><div className={`connection ${connected?'':'offline'}`}>{connected?<Wifi size={15}/>:<WifiOff size={15}/>}<span>{connected?'Bağlı':loaded?'Bağlantı yok':'Bağlanıyor…'}</span></div><div className="session-menu"><span>{user.name} · {roleNames[user.role]}</span><Button variant="outline" disabled={busy} onClick={()=>{if(!gate.current)onSwitch();}}>Personel değiştir</Button><Button variant="outline" disabled={busy} onClick={async()=>{try{await request('/auth/logout',{method:'POST'});window.location.reload();}catch(err){setError(err instanceof Error?err.message:'Çıkış yapılamadı.');}}}>Çıkış</Button></div></header>
       <main>
-        {pending && <div className="alert warning" role="alert"><div><strong>Son işlemin sonucu doğrulanmalı.</strong><p>Yeni işlemden önce aynı isteği güvenle tekrar gönderin. Sayfayı yenilemek işlemi iptal etmez.</p></div><Button disabled={busy} onClick={() => void run(pending,true)}>{busy?<LoaderCircle className="animate-spin" size={16}/>:null}Sonucu kontrol et</Button></div>}
+        {view==='staff' && user.role==='admin' && <StaffPanel user={user}/>}
+        {pending && <div className="alert warning" role="alert"><div><strong>{pending.actorId && pending.actorId!==user.id?'Bekleyen işlem başka personele ait; o hesapla giriş yapın.':'Son işlemin sonucu doğrulanmalı.'}</strong><p>Yeni işlemden önce aynı isteği güvenle tekrar gönderin. Sayfayı yenilemek işlemi iptal etmez.</p></div><Button disabled={busy || (!!pending.actorId && pending.actorId!==user.id)} onClick={() => void run(pending,true)}>{busy?<LoaderCircle className="animate-spin" size={16}/>:null}Sonucu kontrol et</Button></div>}
         {error && <div className="alert error" role="alert">{error}<button onClick={() => setError('')} aria-label="Uyarıyı kapat"><X size={17}/></button></div>}
         {notice && <div className="alert success" role="status"><Check size={17}/>{notice}</div>}
         {!connected && loaded && <div className="alert warning"><span>Sunucuya ulaşılamıyor. Son görüntülenen bilgiler güncel olmayabilir; yeni işlemler bekletiliyor.</span><Button variant="outline" onClick={() => void refresh()}>Yeniden bağlan</Button></div>}
@@ -171,11 +182,11 @@ export default function POS() {
           <aside className="bill"><div className="bill-header"><div><span className="eyebrow">MASA HESABI</span><h2>Adisyon</h2></div><span className="count">{active.length} kalem</span></div>
             {!tab?<div className="empty bill-empty"><Coffee size={36} strokeWidth={1.3}/><h3>İlk siparişi alalım.</h3><p>Adisyonu açtıktan sonra menüden ürün ekleyebilirsiniz.</p><Button disabled={locked} onClick={() => void run(createCommand('/tabs',{table_id:selected}))}><Plus size={17}/>Adisyon aç</Button></div>:<>
               <div className="bill-items">{tab.items.length===0 && <div className="empty">Menüden ürün seçerek başlayın.</div>}{tab.items.map(i => <div key={i.id} className={`bill-item ${i.status==='cancelled'?'cancelled':''}`}><div className="flex justify-between gap-2"><h3>{i.product_name}</h3><span>{money(i.unit_price_cents)}</span></div><div className="flex items-center justify-between mt-3"><span className={`status status-${i.status}`}>{statusNames[i.status]}</span><div className="quantity">{i.status==='draft'?<><button disabled={locked||i.quantity<=1} aria-label={`${i.product_name} azalt`} onClick={() => mutate(`/items/${i.id}`,{quantity:i.quantity-1},'PATCH')}><Minus size={14}/></button><span>{i.quantity}</span><button disabled={locked||i.quantity>=10000} aria-label={`${i.product_name} artır`} onClick={() => mutate(`/items/${i.id}`,{quantity:i.quantity+1},'PATCH')}><Plus size={14}/></button></>:<span>× {i.quantity}</span>}{i.status!=='cancelled' && <button className="delete" disabled={locked} aria-label={`${i.product_name} iptal et`} onClick={() => {setReason('');setCancel({item:i});}}><Trash2 size={14}/></button>}</div></div></div>)}</div>
-              <div className="bill-bottom"><div className="total"><span>Toplam hesap</span><strong>{money(tab.total_cents)}</strong></div><p className="text-xs text-stone-400 mb-4">Tutar, kayıtlı ürün fiyatları üzerinden hesaplanır.</p><Button className="w-full mb-2" disabled={locked || !active.some(i=>i.status==='draft')} onClick={() => mutate('/submit')}><Send size={17}/>Mutfağa gönder</Button><Button variant="outline" className="w-full" disabled={locked||!canPay} onClick={() => setPayment(true)}><CreditCard size={17}/>Ödeme al</Button>{!canPay && active.length>0 && <p className="text-xs text-stone-500 mt-3">Ödeme için tüm aktif ürünler hazır olmalı.</p>}<button className="text-xs text-stone-400 hover:text-red-600 mt-5 underline underline-offset-4" disabled={locked} onClick={() => {setReason('');setCancel({});}}>Adisyonu iptal et</button></div>
+              <div className="bill-bottom"><div className="total"><span>Toplam hesap</span><strong>{money(tab.total_cents)}</strong></div><p className="text-xs text-stone-400 mb-4">Tutar, kayıtlı ürün fiyatları üzerinden hesaplanır.</p><Button className="w-full mb-2" disabled={locked || !active.some(i=>i.status==='draft')} onClick={() => mutate('/submit')}><Send size={17}/>Mutfağa gönder</Button><Button variant="outline" className="w-full" disabled={locked||!canPay||!['admin','cashier'].includes(user.role)} onClick={() => setPayment(true)}><CreditCard size={17}/>Ödeme al</Button>{!canPay && active.length>0 && <p className="text-xs text-stone-500 mt-3">Ödeme için tüm aktif ürünler hazır olmalı.</p>}<button className="text-xs text-stone-400 hover:text-red-600 mt-5 underline underline-offset-4" disabled={locked} onClick={() => {setReason('');setCancel({});}}>Adisyonu iptal et</button></div>
             </>}
           </aside></div>
         </>}
-        {view==='kitchen' && <><div className="page-heading"><div><span className="eyebrow">BİRLİKTE, TAM ZAMANINDA</span><h1>Mutfak akışı.</h1><p>Gönderilen siparişleri takip edin, hazırlık durumunu güncelleyin.</p></div><div className="summary"><ChefHat size={20}/><strong>{kitchen.filter(i=>i.status!=='ready').length}</strong> bekleyen kalem</div></div><div className="kitchen-grid">{(['sent','preparing','ready'] as const).map(state => <section key={state} className="kitchen-column"><h2><span className={`status status-${state}`}>{statusNames[state]}</span><span>{kitchen.filter(i=>i.status===state).length}</span></h2>{kitchen.filter(i=>i.status===state).map(i => <article className="kitchen-card" key={i.id}><div className="flex justify-between text-xs text-stone-400"><span>{i.table_name}</span><span>{new Date(i.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} · Eklendi</span></div><h3><b>{i.quantity}×</b> {i.product_name}</h3>{state==='ready'?<div className="text-sm text-emerald-700 flex gap-2 items-center"><CheckCheck size={17}/>Servise hazır</div>:<Button className="w-full" variant={state==='sent'?'outline':'default'} disabled={locked} onClick={() => void run(createCommand(`/tabs/${i.tab_id}/items/${i.id}/status`,{expected_version:i.version,status:state==='sent'?'preparing':'ready'},'PATCH'))}>{state==='sent'?<ChefHat size={16}/>:<Check size={16}/>} {state==='sent'?'Hazırlamaya başla':'Hazır işaretle'}</Button>}</article>)}{!kitchen.some(i=>i.status===state) && <div className="column-empty">Bu aşamada sipariş yok.</div>}</section>)}</div></>}
+        {view==='kitchen' && <><div className="page-heading"><div><span className="eyebrow">BİRLİKTE, TAM ZAMANINDA</span><h1>Mutfak akışı.</h1><p>Gönderilen siparişleri takip edin, hazırlık durumunu güncelleyin.</p></div><div className="summary"><ChefHat size={20}/><strong>{kitchen.filter(i=>i.status!=='ready').length}</strong> bekleyen kalem</div></div><div className="kitchen-grid">{(['sent','preparing','ready'] as const).map(state => <section key={state} className="kitchen-column"><h2><span className={`status status-${state}`}>{statusNames[state]}</span><span>{kitchen.filter(i=>i.status===state).length}</span></h2>{kitchen.filter(i=>i.status===state).map(i => <article className="kitchen-card" key={i.id}><div className="flex justify-between text-xs text-stone-400"><span>{i.table_name}</span><span>{new Date(i.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} · Eklendi</span></div><h3><b>{i.quantity}×</b> {i.product_name}</h3>{state==='ready'?<div className="text-sm text-emerald-700 flex gap-2 items-center"><CheckCheck size={17}/>Servise hazır</div>:<Button className="w-full" variant={state==='sent'?'outline':'default'} disabled={locked||!['admin','kitchen'].includes(user.role)} onClick={() => void run(createCommand(`/tabs/${i.tab_id}/items/${i.id}/status`,{expected_version:i.version,status:state==='sent'?'preparing':'ready'},'PATCH'))}>{state==='sent'?<ChefHat size={16}/>:<Check size={16}/>} {state==='sent'?'Hazırlamaya başla':'Hazır işaretle'}</Button>}</article>)}{!kitchen.some(i=>i.status===state) && <div className="column-empty">Bu aşamada sipariş yok.</div>}</section>)}</div></>}
       </main>
     </div>
     <Modal open={payment} onOpenChange={v=>{if(!busy)setPayment(v);}} title="Hesabı kapat" description={`${table?.name || 'Masa'} · Tek seferde tam ödeme kaydı`}><div className="payment-total">{money(tab?.total_cents || 0)}</div><div className="grid grid-cols-2 gap-3 my-5"><Button variant={method==='cash'?'default':'outline'} onClick={()=>setMethod('cash')} disabled={locked}><Banknote size={20}/>Nakit</Button><Button variant={method==='card'?'default':'outline'} onClick={()=>setMethod('card')} disabled={locked}><CreditCard size={20}/>Kart</Button></div><label className="confirm-label"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} disabled={locked}/><span>{method==='card'?'Harici POS cihazında ödeme başarıyla alındı.':'Nakit tahsilat alındı.'}</span></label><Button className="w-full mt-6" disabled={locked||!confirmed||!canPay} onClick={()=>mutate('/payments',{amount_cents:tab!.total_cents,method})}>{busy?<LoaderCircle className="animate-spin" size={17}/>:<Check size={17}/>}Ödemeyi kaydet ve kapat</Button></Modal>
