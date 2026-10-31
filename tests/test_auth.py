@@ -9,7 +9,7 @@ from test_tabs import TabFixture
 from app.main import app
 from app import auth
 
-PASSWORD = 'Test-parolasi-2026!'
+PASSWORD = '583027461902'
 ENCODED = auth.hash_password(PASSWORD)
 
 
@@ -174,13 +174,13 @@ class AuthTests(TabFixture):
         client=TestClient(app,headers={'X-CafeERP-Request':'1'})
         self.addCleanup(client.close)
         self.assertEqual(self.login(client,'newstaff').status_code,200)
-        body={'name':'Güncel','role':'cashier','is_active':True,'expected_version':0,'password':'Yeni-parola-2026!'}
+        body={'name':'Güncel','role':'cashier','is_active':True,'expected_version':0,'password':'739185026401'}
         changed=self.client.patch(f"/api/auth/staff/{account['id']}",json=body)
         self.assertEqual(changed.status_code,200,changed.text)
         self.assertEqual(client.get('/api/auth/me').status_code,401)
         self.assertEqual(self.client.patch(f"/api/auth/staff/{account['id']}",json=body).status_code,409)
         self.assertEqual(self.login(client,'newstaff').status_code,401)
-        self.assertEqual(self.login(client,'newstaff','Yeni-parola-2026!').json()['role'],'cashier')
+        self.assertEqual(self.login(client,'newstaff','739185026401').json()['role'],'cashier')
         admin=self.client.get('/api/auth/me').json()
         body={'name':admin['name'],'role':'waiter','is_active':True,'expected_version':admin['version']}
         self.assertEqual(self.client.patch(f"/api/auth/staff/{admin['id']}",json=body).status_code,409)
@@ -236,7 +236,7 @@ class AuthTests(TabFixture):
             self.assertEqual(conn.execute(text('SELECT count(*) FROM api_requests')).scalar_one(),0)
 
     def test_four_character_password_create_reset_and_login(self):
-        for password in ('abc','x'*129):
+        for password in ('123','1'*129,'abcd','12a4','12 4','12-4','１２３４','١٢٣٤','1234\n'):
             response=self.client.post('/api/auth/staff',json={'username':'shortstaff','name':'Kasiyer','role':'cashier','password':password})
             self.assertEqual(response.status_code,422)
             with self.assertRaises(ValueError):
@@ -247,10 +247,28 @@ class AuthTests(TabFixture):
         client=TestClient(app,headers={'X-CafeERP-Request':'1','Origin':'http://localhost:3001'})
         self.addCleanup(client.close)
         self.assertEqual(self.login(client,'shortstaff','4826').status_code,200)
-        body={'name':'Kasiyer','role':'cashier','is_active':True,'expected_version':0,'password':'kasa'}
+        body={'name':'Kasiyer','role':'cashier','is_active':True,'expected_version':0,'password':'0037'}
         self.assertEqual(self.client.patch(f"/api/auth/staff/{account['id']}",json=body).status_code,200)
         self.assertEqual(client.get('/api/auth/me').status_code,401)
-        self.assertEqual(self.login(client,'shortstaff','kasa').status_code,200)
+        self.assertEqual(self.login(client,'shortstaff','0037').status_code,200)
+        rejected=self.client.patch(f"/api/auth/staff/{account['id']}",json={**body,'expected_version':1,'password':'12a4'})
+        self.assertEqual(rejected.status_code,422)
+        self.assertEqual(client.get('/api/auth/me').status_code,200)
+
+    def test_legacy_password_can_login_until_admin_sets_numeric_password(self):
+        client,account,_=self.account('cashier')
+        legacy='Eski-parola-2026!'
+        encoded=auth.hash_password(legacy,enforce_policy=False)
+        with self.engine.begin() as conn:
+            conn.execute(text('UPDATE staff_accounts SET password_hash=:hash WHERE id=:id'),{'hash':encoded,'id':account['id']})
+        self.assertEqual(self.login(client,'cashier',legacy).status_code,200)
+        with self.assertRaises(ValueError):
+            auth.hash_password(legacy)
+        body={'name':'Kasiyer','role':'cashier','is_active':True,'expected_version':0,'password':'0073'}
+        self.assertEqual(self.client.patch(f"/api/auth/staff/{account['id']}",json=body).status_code,200)
+        self.assertEqual(client.get('/api/auth/me').status_code,401)
+        self.assertEqual(self.login(client,'cashier',legacy).status_code,401)
+        self.assertEqual(self.login(client,'cashier','0073').status_code,200)
 
     def test_switch_list_requires_session_and_only_returns_active_basic_fields(self):
         client,account,_=self.account('cashier')

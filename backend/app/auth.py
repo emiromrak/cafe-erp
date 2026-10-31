@@ -1,6 +1,7 @@
 """Veritabanında doğrulanan personel oturumları ve rol sınırları."""
 import hashlib
 import os
+import re
 import secrets
 from typing import Annotated
 
@@ -26,10 +27,19 @@ def secure_cookie():
     return os.getenv('CAFE_COOKIE_SECURE', 'false').lower() == 'true'
 
 
-def hash_password(password, salt=None):
+def validate_password(password):
+    """Yeni parolalar baştaki sıfırları korunarak yalnızca ASCII rakamları içerir."""
+    if not re.fullmatch(r'[0-9]{4,128}', password):
+        raise ValueError('Parola yalnızca 0–9 rakamlarından oluşmalı ve 4–128 hane olmalı.')
+    return password
+
+
+def hash_password(password, salt=None, *, enforce_policy=True):
     """Rastgele tuzla scrypt; düz metin parola veya PIN saklanmaz."""
-    if not 4 <= len(password) <= 128:
-        raise ValueError('Parola 4–128 karakter olmalı.')
+    if enforce_policy:
+        validate_password(password)
+    elif not 4 <= len(password) <= 128:
+        raise ValueError('Geçersiz parola uzunluğu.')
     salt = salt or secrets.token_hex(16)
     digest = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt),
                             n=131072, r=8, p=1, maxmem=256 * 1024 * 1024).hex()
@@ -41,7 +51,8 @@ def verify_password(password, encoded):
         algorithm, salt, digest = encoded.split('$')
         if algorithm != 'scrypt':
             return False
-        actual = hash_password(password, salt).split('$')[2]
+        # Eski harfli parolalar, yönetici sayısal parola belirleyene kadar girişte çalışır.
+        actual = hash_password(password, salt, enforce_policy=False).split('$')[2]
         return secrets.compare_digest(actual, digest)
     except (ValueError, TypeError):
         return False

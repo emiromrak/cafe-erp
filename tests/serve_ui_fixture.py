@@ -17,7 +17,7 @@ if __name__ == '__main__':
         # Bu parola yalnızca geçici test şemasına aittir; işletme hesabı açılmaz.
         with fixture.engine.begin() as conn:
             conn.execute(text("UPDATE staff_accounts SET password_hash=:hash WHERE username='testadmin'"),
-                         {'hash':auth.hash_password('Test-parolasi-2026!')})
+                         {'hash':auth.hash_password('583027461902')})
         uvicorn.run(app, host='0.0.0.0', port=8000)
     finally:
         fixture.doCleanups()

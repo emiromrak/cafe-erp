@@ -3,7 +3,7 @@ import secrets
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, SecretStr, StringConstraints
 from sqlalchemy import text
 
 from app import auth
@@ -17,6 +17,14 @@ Role = Literal['admin', 'cashier', 'waiter', 'kitchen']
 Admin = Annotated[dict, Depends(auth.require_roles('admin'))]
 
 
+def numeric_password(value: SecretStr):
+    auth.validate_password(value.get_secret_value())
+    return value
+
+
+NumericPassword = Annotated[SecretStr, Field(min_length=4, max_length=128), AfterValidator(numeric_password)]
+
+
 class Login(BaseModel):
     model_config = ConfigDict(extra='forbid', hide_input_in_errors=True)
     username: Username
@@ -26,7 +34,7 @@ class Login(BaseModel):
 class NewAccount(Login):
     name: Name
     role: Role
-    password: Annotated[SecretStr, Field(min_length=4, max_length=128)]
+    password: NumericPassword
 
 
 class ChangeAccount(BaseModel):
@@ -35,11 +43,11 @@ class ChangeAccount(BaseModel):
     role: Role
     is_active: bool
     expected_version: Annotated[int, Field(strict=True, ge=0, le=9223372036854775806)]
-    password: Annotated[SecretStr | None, Field(min_length=4, max_length=128)] = None
+    password: NumericPassword | None = None
 
 
 # Var olmayan kullanıcıda da aynı maliyetle parola doğrulanır.
-_DUMMY = auth.hash_password(secrets.token_urlsafe(24))
+_DUMMY = auth.hash_password(''.join(secrets.choice('0123456789') for _ in range(32)))
 
 
 @router.post('/login')

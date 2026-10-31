@@ -11,7 +11,7 @@ from app.database import get_engine
 if __name__ == '__main__':
     username = input('Yönetici kullanıcı adı (a-z, 0-9, en az 3 karakter): ').strip()
     name = input('Ad soyad: ').strip()
-    password = getpass.getpass('Parola (4–128 karakter): ')
+    password = getpass.getpass('Parola (yalnızca rakam, 4–128 hane): ')
     if password != getpass.getpass('Parola tekrar: '):
         raise SystemExit('Parolalar eşleşmiyor.')
     engine = get_engine()

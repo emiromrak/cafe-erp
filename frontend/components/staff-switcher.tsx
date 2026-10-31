@@ -47,7 +47,7 @@ export function StaffSwitcher({user,onClose,onChanged}:{user:Staff;onClose:()=>v
         <Button type="button" variant="outline" disabled={busy} onClick={()=>{setSelected(null);setPassword('');setError('');}}><ArrowLeft size={16}/>Hesaplar</Button>
         <div className="switch-account"><strong>{selected.name}</strong><span>{roleNames[selected.role]}</span></div>
         <label className="switch-password" htmlFor="switch-password">Parola
-          <input ref={input} id="switch-password" type="password" autoFocus autoComplete="off" minLength={4} maxLength={128}
+          <input ref={input} id="switch-password" type="password" inputMode="numeric" autoFocus autoComplete="off" minLength={4} maxLength={128}
             required value={password} onChange={e=>setPassword(e.target.value)} readOnly={busy}/>
         </label>
         <div className="switch-keypad" aria-label="Sayısal parola tuşları">

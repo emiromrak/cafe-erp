@@ -55,7 +55,7 @@ export function AuthGate({children}:{children:(user:Staff,onSwitch:()=>void)=>Re
   }}>
     <Coffee size={35}/><h1>CafeERP</h1><p>Servise başlamak için personel hesabınızla giriş yapın.</p>
     <label>Kullanıcı adı<input name="username" autoComplete="username" required minLength={3} maxLength={50} value={username} onChange={e=>setUsername(e.target.value)} disabled={busy}/></label>
-    <label>Parola<input name="password" type="password" autoComplete="current-password" required minLength={4} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)} disabled={busy}/></label>
+    <label>Parola<input name="password" type="password" inputMode="numeric" autoComplete="current-password" required minLength={4} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)} disabled={busy}/></label>
     {error && <div className="alert error" role="alert">{error}</div>}
     <Button className="w-full" disabled={busy}>{busy?<LoaderCircle className="animate-spin" size={17}/>:null}Giriş yap</Button>
     <p className="login-help">Hesabınız yoksa işletme yöneticisine başvurun.</p>
